@@ -10,42 +10,44 @@ import java.util.Queue;
 import java.util.concurrent.*;
 
 public class ResponseReader {
-    private final BlockingQueue<Message> messageQueue;
+    private final BlockingQueue<Message> responseQueue;
     private static final Logger LOGGER = Logger.getLogger(ResponseReader.class);
 
     private final String fileName;
     private int numberOfMessages;
-    private int numberOfThreads;
+    private int responseQueueConsumers;
     private ExecutorService service;
 
-    public ResponseReader(BlockingQueue<Message> mQueue,int numberOfThreads,String fileName){
-        messageQueue = mQueue;
+    public ResponseReader(BlockingQueue<Message> mQueue,int responseQueueConsumers,String fileName){
+        responseQueue = mQueue;
         this.fileName = fileName;
         this.numberOfMessages = numberOfMessages;
-        this.numberOfThreads = numberOfThreads;
+        this.responseQueueConsumers = responseQueueConsumers;
         BasicThreadFactory factory = new BasicThreadFactory.Builder()
-                .namingPattern("QCMProcessor-%d")
+                .namingPattern("ResponseReader-%d")
                 .priority(Thread.MAX_PRIORITY)
                 .build();
-        service = Executors.newFixedThreadPool(numberOfThreads, factory);
+        service = Executors.newFixedThreadPool(responseQueueConsumers, factory);
 
     }
     public void start() throws IOException, InterruptedException {
-        List<Runnable> runnables = new ArrayList<>(numberOfThreads);
+        List<Runnable> runnables = new ArrayList<>(responseQueueConsumers);
 
         final Queue<String> fileNames = new LinkedBlockingQueue<>();
-        for (int i = 0; i < numberOfThreads; i++) {
+        for (int i = 0; i < responseQueueConsumers; i++) {
             fileNames.offer(fileName+"-"+(i+1));
         }
-        for (int i = 0; i < numberOfThreads; i++) {
+        for (int i = 0; i < responseQueueConsumers; i++) {
             Runnable runnable = () -> {
+                int count = 0;
                 try(FileWriter fileWriter = new FileWriter(fileNames.remove(), true)) {
                     while (true) {
                         try {
-                            Message message = messageQueue.take();
+                            Message message = responseQueue.take();
                             if (message.getType() == "TERM")
                                 break;
                             consumeMessage(message,fileWriter);
+                            count++;
                         } catch (InterruptedException e) {
                             e.printStackTrace();
                         }
@@ -53,7 +55,7 @@ public class ResponseReader {
                 }catch (IOException e) {
                     e.printStackTrace();
                 }
-                LOGGER.info("Write Done in " +Thread.currentThread().getName() );
+                LOGGER.info(count+" Messages Written Done in " +Thread.currentThread().getName() );
 
             };
             runnables.add(runnable);
@@ -78,8 +80,15 @@ public class ResponseReader {
 
     public void shutdown() throws InterruptedException, IOException {
         service.shutdown();
+        while (!service.isTerminated()){
+            Thread.sleep(100);
+        }
         service.awaitTermination(1000, TimeUnit.SECONDS);
-        mergeFiles(fileName,numberOfThreads);
+        System.out.println("Message consumption finished, now merging will be started...");
+        long startTime = System.currentTimeMillis();
+        mergeFiles(fileName,responseQueueConsumers);
+        long endTime  = System.currentTimeMillis();
+        System.out.println("Merging finished in "+(endTime - startTime)+" miliseconds");
     }
 
     private void mergeFiles(String fileName, int numberOfThreads) throws IOException {

@@ -23,7 +23,7 @@ public class App
 
     public static void main( String[] args ) throws IOException, InterruptedException {
 
-        int numberOfMessages = 100;
+        int numberOfMessages = 100000;
         int numberOfThreads = 10;
         int ddrsCounsumer = 10;
         int rmaInputConsumer = 10;
@@ -46,7 +46,7 @@ public class App
         QCMProcessor qcmProcessor = new QCMProcessor(rmaOutputQueue,qcmNodePerSite,qcmNodeMap,rmaOutputQueueConsumers);
         RMAQueueProcessor rmaQueueProcessor = new RMAQueueProcessor(rmaInputQueue,rmaOutputQueue,responseQueue,qcmSiteList,rmaInputConsumer, rmaOutputQueueConsumers, responseQueueConsumers);
         QCMDispatcher qcmDispatcher = new QCMDispatcher(qcmNodeMap,qcmSiteList,qcmNodePerSite);
-        ResponseReader responseReader = new ResponseReader(responseQueue,10,FILE_NAME);
+        ResponseReader responseReader = new ResponseReader(responseQueue,responseQueueConsumers,FILE_NAME);
 
         generator.start();
         ddrsStub.start();
@@ -54,14 +54,14 @@ public class App
         qcmDispatcher.start();
         qcmProcessor.spawnQCMThread();
         rmaQueueProcessor.sendResponse();
-        //responseReader.start();*/
+        responseReader.start();
         generator.stop();
         ddrsStub.stop();
         rmaQueueProcessor.stop();
         qcmDispatcher.stop();
         qcmProcessor.stop();
         rmaQueueProcessor.shutdownResponseProcess();
-        //responseReader.shutdown();*/
+        responseReader.shutdown();
     }
 
     private static void initQCMSites(int qcmSites) {

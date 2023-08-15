@@ -54,18 +54,6 @@ public class QCMDispatcher {
 
                 runnables.add(runnable);
         }
-        Runnable poisonPillTask = () -> {
-            for(int i=0;i<qcmSiteList.size();i++) {
-                for (int j = 0; j < qcmNodePerSite; j++) {
-                    Message message = new Message("TERM");
-                    message.setDestinationId(i);
-                    message.setNodeId(j);
-                    qcmNodeMap.get(i).get(j).offer(message);
-                }
-            }
-        };
-        runnables.add(poisonPillTask);
-
         BasicThreadFactory factory = new BasicThreadFactory.Builder()
                 .namingPattern("QCMDispatcher-%d")
                 .priority(Thread.MAX_PRIORITY)
@@ -83,6 +71,17 @@ public class QCMDispatcher {
         long startTime = System.currentTimeMillis();
         LOGGER.info("QCMProcessor shutdown triggered:");
         executorService.shutdown();
+        while(!executorService.isTerminated()){
+            Thread.sleep(100);
+        }
+        for(int i=0;i<qcmSiteList.size();i++) {
+            for (int j = 0; j < qcmNodePerSite; j++) {
+                Message message = new Message("TERM");
+                message.setDestinationId(i);
+                message.setNodeId(j);
+                qcmNodeMap.get(i).get(j).offer(message);
+            }
+        }
         long endTime = System.currentTimeMillis();
         LOGGER.info("QCMProcessor shutdown passed:"+(endTime - startTime));
         startTime = System.currentTimeMillis();

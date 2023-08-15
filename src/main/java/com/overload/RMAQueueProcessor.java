@@ -62,19 +62,12 @@ public class RMAQueueProcessor {
             long endTime = System.currentTimeMillis();
             LOGGER.info(count+" Message pushed to QCMSites in " + (endTime - startTime) + " milis");
         };
-        Runnable poisonPillTask = () -> {
-            for (int i = 0; i < qcmSiteList.size(); i++) {
-                Message message = new Message("TERM");
-                message.setDestinationId(i);
-                qcmSiteList.get(i).offer(message);
-            }
-        };
 
         List<Runnable> runnableList = new ArrayList<>();
         for (int i = 0; i < rmaInputQueueConsumers; i++) {
             runnableList.add(consumerTask);
         }
-        runnableList.add(poisonPillTask);
+
         for (Runnable runnable:runnableList) {
             consumerExecutor.execute(runnable);
         }
@@ -106,18 +99,10 @@ public class RMAQueueProcessor {
             LOGGER.info(count +" Message read from rmaOutputQueue by "+Thread.currentThread().getName());
         };
 
-        Runnable poisonPillTask = () -> {
-            for (int i = 0; i < this.responseQueueConsumers; i++) {
-                Message message = new Message("TERM");
-                responseQueue.offer(message);
-            }
-        };
-
         List<Runnable> runnableList = new ArrayList<>();
         for (int i = 0; i < rmaOutputQueueConsumers; i++) {
             runnableList.add(responseTask);
         }
-        runnableList.add(poisonPillTask);
 
         BasicThreadFactory factory = new BasicThreadFactory.Builder()
                 .namingPattern("RMA-Response-Handler-%d")
@@ -134,7 +119,14 @@ public class RMAQueueProcessor {
                 long startTime = System.currentTimeMillis();
                 LOGGER.info("Workload shutdown triggered:");
                 consumerExecutor.shutdown();
-
+                while(!consumerExecutor.isTerminated()){
+                    Thread.sleep(100);
+                }
+                for (int i = 0; i < qcmSiteList.size(); i++) {
+                    Message message = new Message("TERM");
+                    message.setDestinationId(i);
+                    qcmSiteList.get(i).offer(message);
+                }
                 long endTime = System.currentTimeMillis();
                 LOGGER.info("Workload shutdown passed:" + (endTime - startTime));
                 startTime = System.currentTimeMillis();
@@ -145,6 +137,14 @@ public class RMAQueueProcessor {
 
             public void shutdownResponseProcess() throws InterruptedException {
                 responseExecutor.shutdown();
+                while (!responseExecutor.isTerminated()) {
+                    Thread.sleep(100);
+                }
+                for (int i = 0; i < this.responseQueueConsumers; i++) {
+                    Message message = new Message("TERM");
+                    responseQueue.offer(message);
+                }
+
                 responseExecutor.awaitTermination(1000, TimeUnit.SECONDS);
             }
         }

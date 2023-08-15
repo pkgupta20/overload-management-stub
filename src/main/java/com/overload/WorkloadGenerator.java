@@ -47,19 +47,10 @@ public class WorkloadGenerator {
             LOGGER.info(numberOfMessagePerThread +" Message pushed in "+Thread.currentThread().getName());
         };
 
-        Runnable poisonPillTask = () -> {
-            for(int i=0;i<numberOfThreads;i++) {
-                Message message = new Message("TERM");
-                marbenMessageQueue.offer(message);
-            }
-            LOGGER.info(numberOfThreads +" Message pushed in "+Thread.currentThread().getName());
-        };
-
-
-        for (int i = 0; i < numberOfThreads; i++) {
+       for (int i = 0; i < numberOfThreads; i++) {
             publisherExecutor.execute(publisherTask);
         }
-        publisherExecutor.execute(poisonPillTask);
+
     }
 
     public static void main(String[] args) {
@@ -86,6 +77,13 @@ public class WorkloadGenerator {
         long startTime = System.currentTimeMillis();
         LOGGER.info("Workload shutdown triggered:");
         publisherExecutor.shutdown();
+        while(!publisherExecutor.isTerminated()){
+            Thread.sleep(100);
+        }
+        for(int i=0;i<numberOfThreads;i++) {
+            Message message = new Message("TERM");
+            marbenMessageQueue.offer(message);
+        }
         long endTime = System.currentTimeMillis();
         LOGGER.info("Workload shutdown passed:"+(endTime - startTime));
         startTime = System.currentTimeMillis();

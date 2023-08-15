@@ -64,14 +64,7 @@ public class QCMProcessor {
 
         }
 
-        Runnable poisonPillTask = () ->{
-            for (int i = 0; i < rmaOutputQueueConsumers; i++) {
-                Message message = new Message("TERM");
-                rmaOutputQueue.offer(message);
-            }
-        };
 
-        runnables.add(poisonPillTask);
         BasicThreadFactory factory = new BasicThreadFactory.Builder()
                 .namingPattern("QCMProcessor-%d")
                 .priority(Thread.MAX_PRIORITY)
@@ -81,14 +74,24 @@ public class QCMProcessor {
             executorService.submit(qcmProcess);
         }
 
+
     }
 
 
 
     public void stop() throws InterruptedException {
+
         long startTime = System.currentTimeMillis();
         LOGGER.info("QCMProcessor shutdown triggered:");
         executorService.shutdown();
+        while(!executorService.isTerminated()){
+            Thread.sleep(100);
+        }
+        for (int i = 0; i < rmaOutputQueueConsumers; i++) {
+            Message message = new Message("TERM");
+            rmaOutputQueue.offer(message);
+        }
+
         long endTime = System.currentTimeMillis();
         LOGGER.info("QCMProcessor shutdown passed:"+(endTime - startTime));
         startTime = System.currentTimeMillis();
