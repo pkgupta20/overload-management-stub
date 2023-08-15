@@ -37,7 +37,9 @@ public class DDRSStub {
         Runnable consumerTask = () -> {
             Message message = null;
             try {
+                int count = 0;
                 while(true) {
+
                     message = marbenQueue.take();
                     if (message != null) {
 
@@ -45,12 +47,14 @@ public class DDRSStub {
                         int nodeId = randomNode.nextInt(qcmNodePerSite);
                         message = processMessage(message,siteId,nodeId);
                         rmaInputQueue.offer(message);
+                        count++;
                         if(message.getType()=="TERM") {
                             LOGGER.info(" Message received in thread ::  " + message.getType() + "thread name: " + Thread.currentThread().getName());
                             break;
                         }
                     }
                 }
+                LOGGER.info(count+" Message processed in "+Thread.currentThread().getName());
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -71,13 +75,13 @@ public class DDRSStub {
 
     public void stop() throws InterruptedException {
         long startTime = System.currentTimeMillis();
-        LOGGER.info("Workload shutdown triggered:");
+        LOGGER.info("DDRSStub shutdown triggered:");
         consumerExecutor.shutdown();
         long endTime = System.currentTimeMillis();
-        LOGGER.info("Workload shutdown passed:"+(endTime - startTime));
+        LOGGER.info("DDRSStub shutdown passed:"+(endTime - startTime));
         startTime = System.currentTimeMillis();
-        consumerExecutor.awaitTermination(1000,TimeUnit.MILLISECONDS);
-        LOGGER.info("Waited for Termination:"+( System.currentTimeMillis() - startTime));
+        consumerExecutor.awaitTermination(10000,TimeUnit.SECONDS);
+        LOGGER.info("DDRSStub Waited for Termination:"+( System.currentTimeMillis() - startTime));
 
     }
 

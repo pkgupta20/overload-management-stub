@@ -48,11 +48,11 @@ public class WorkloadGenerator {
         };
 
         Runnable poisonPillTask = () -> {
-            for(int i=0;i<numberOfConsumerThreads;i++) {
+            for(int i=0;i<numberOfThreads;i++) {
                 Message message = new Message("TERM");
                 marbenMessageQueue.offer(message);
             }
-            LOGGER.info(numberOfMessagePerThread +" Message pushed in "+Thread.currentThread().getName());
+            LOGGER.info(numberOfThreads +" Message pushed in "+Thread.currentThread().getName());
         };
 
 
@@ -89,7 +89,7 @@ public class WorkloadGenerator {
         long endTime = System.currentTimeMillis();
         LOGGER.info("Workload shutdown passed:"+(endTime - startTime));
         startTime = System.currentTimeMillis();
-        publisherExecutor.awaitTermination(1000,TimeUnit.MILLISECONDS);
+        publisherExecutor.awaitTermination(1000,TimeUnit.SECONDS);
         LOGGER.info("Waited for Termination:"+( System.currentTimeMillis() - startTime));
 
     }

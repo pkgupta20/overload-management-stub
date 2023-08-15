@@ -23,8 +23,12 @@ public class App
 
     public static void main( String[] args ) throws IOException, InterruptedException {
 
-        int numberOfMessages = 100000;
+        int numberOfMessages = 100;
         int numberOfThreads = 10;
+        int ddrsCounsumer = 10;
+        int rmaInputConsumer = 10;
+        int rmaOutputQueueConsumers = 10;
+        int responseQueueConsumers = 10;
         int numberOfConsumerThreads = 10;
         int qcmSites = 3;
         int qcmNodePerSite = 3;
@@ -36,13 +40,13 @@ public class App
         initQCMSites(qcmSites);
         initQCMNodes(qcmSites, qcmNodePerSite);
 
-        WorkloadGenerator generator = new WorkloadGenerator(numberOfMessages,numberOfThreads,marbenQueue,numberOfConsumerThreads);
+        WorkloadGenerator generator = new WorkloadGenerator(numberOfMessages,numberOfThreads,marbenQueue,ddrsCounsumer);
 
         DDRSStub ddrsStub = new DDRSStub(marbenQueue,numberOfMessages, rmaInputQueue,qcmSites,numberOfThreads,qcmNodePerSite);
-        QCMProcessor qcmProcessor = new QCMProcessor(rmaOutputQueue,qcmNodePerSite,qcmNodeMap,numberOfThreads);
-        RMAQueueProcessor rmaQueueProcessor = new RMAQueueProcessor(rmaInputQueue,rmaOutputQueue,responseQueue,qcmSiteList,numberOfMessages,numberOfThreads);
+        QCMProcessor qcmProcessor = new QCMProcessor(rmaOutputQueue,qcmNodePerSite,qcmNodeMap,rmaOutputQueueConsumers);
+        RMAQueueProcessor rmaQueueProcessor = new RMAQueueProcessor(rmaInputQueue,rmaOutputQueue,responseQueue,qcmSiteList,rmaInputConsumer, rmaOutputQueueConsumers, responseQueueConsumers);
         QCMDispatcher qcmDispatcher = new QCMDispatcher(qcmNodeMap,qcmSiteList,qcmNodePerSite);
-        ResponseReader responseReader = new ResponseReader(responseQueue,FILE_NAME,numberOfMessages);
+        ResponseReader responseReader = new ResponseReader(responseQueue,10,FILE_NAME);
 
         generator.start();
         ddrsStub.start();
@@ -50,12 +54,14 @@ public class App
         qcmDispatcher.start();
         qcmProcessor.spawnQCMThread();
         rmaQueueProcessor.sendResponse();
-        responseReader.start();
+        //responseReader.start();*/
         generator.stop();
         ddrsStub.stop();
         rmaQueueProcessor.stop();
         qcmDispatcher.stop();
         qcmProcessor.stop();
+        rmaQueueProcessor.shutdownResponseProcess();
+        //responseReader.shutdown();*/
     }
 
     private static void initQCMSites(int qcmSites) {

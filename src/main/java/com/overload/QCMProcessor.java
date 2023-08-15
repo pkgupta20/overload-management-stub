@@ -19,17 +19,17 @@ public class QCMProcessor {
 
     private int qcmNodePerSite;
 
-    private int numberOfThreads;
+    private int rmaOutputQueueConsumers;
 
 
     private static final Logger LOGGER = Logger.getLogger(QCMProcessor.class);
 
-    public QCMProcessor(BlockingQueue<Message> rmaOutputQueue, int qcmNodePerSite, Map<Integer, List<BlockingQueue<Message>>> qcmNodeMap, int numberOfThreads){
+    public QCMProcessor(BlockingQueue<Message> rmaOutputQueue, int qcmNodePerSite, Map<Integer, List<BlockingQueue<Message>>> qcmNodeMap, int rmaOutputQueueConsumers){
 
         this.rmaOutputQueue = rmaOutputQueue;
         this.qcmNodePerSite=qcmNodePerSite;
         this.qcmNodeMap = qcmNodeMap;
-        this.numberOfThreads=numberOfThreads;
+        this.rmaOutputQueueConsumers=rmaOutputQueueConsumers;
     }
 
 
@@ -42,6 +42,7 @@ public class QCMProcessor {
 
             for (BlockingQueue<Message> qcmNode: qcmNodeList) {
                 Runnable runnable = () -> {
+                    int count = 0;
                     while (true) {
                         try {
                             Message message = qcmNode.take();
@@ -50,18 +51,27 @@ public class QCMProcessor {
                                 break;
                             }
                             processMessage(message);
+                            count++;
+
                         } catch (InterruptedException e) {
                             throw new RuntimeException(e);
                         }
                     }
-                    LOGGER.info("Message Pushed to QCM Processor :: "+Thread.currentThread().getName());
+                    LOGGER.info(count+" Message processed in QCM Node:: "+Thread.currentThread().getName());
                 };
                 runnables.add(runnable);
             }
 
         }
 
+        Runnable poisonPillTask = () ->{
+            for (int i = 0; i < rmaOutputQueueConsumers; i++) {
+                Message message = new Message("TERM");
+                rmaOutputQueue.offer(message);
+            }
+        };
 
+        runnables.add(poisonPillTask);
         BasicThreadFactory factory = new BasicThreadFactory.Builder()
                 .namingPattern("QCMProcessor-%d")
                 .priority(Thread.MAX_PRIORITY)
@@ -70,23 +80,19 @@ public class QCMProcessor {
         for(Runnable qcmProcess:runnables){
             executorService.submit(qcmProcess);
         }
+
     }
 
 
 
     public void stop() throws InterruptedException {
-        for (int i = 0; i < numberOfThreads; i++) {
-            Message message = new Message("TERM");
-            rmaOutputQueue.offer(message);
-        }
-
         long startTime = System.currentTimeMillis();
         LOGGER.info("QCMProcessor shutdown triggered:");
         executorService.shutdown();
         long endTime = System.currentTimeMillis();
         LOGGER.info("QCMProcessor shutdown passed:"+(endTime - startTime));
         startTime = System.currentTimeMillis();
-        executorService.awaitTermination(10000,TimeUnit.SECONDS);
+        executorService.awaitTermination(100000,TimeUnit.SECONDS);
         LOGGER.info("Waited for Termination:"+( System.currentTimeMillis() - startTime));
     }
     public void processMessage(Message message) throws InterruptedException {

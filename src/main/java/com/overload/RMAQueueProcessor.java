@@ -3,6 +3,7 @@ package com.overload;
 import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.apache.log4j.Logger;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 
@@ -16,33 +17,34 @@ public class RMAQueueProcessor {
 
     private ExecutorService responseExecutor;
 
-    private int numberOfThreads;
+    private int rmaInputQueueConsumers;
+    private int rmaOutputQueueConsumers;
+    private int responseQueueConsumers;
     private static final Logger LOGGER = Logger.getLogger(RMAQueueProcessor.class);
 
     private List<BlockingQueue<Message>> qcmSiteList;
 
-    private int numberOfMessages;
 
-
-    public RMAQueueProcessor(BlockingQueue<Message> rmaInputQueue, BlockingQueue<Message> rmaOutputQueue, BlockingQueue<Message> responseQueue, List<BlockingQueue<Message>> qcmSites, int numberOfMessage, int numberOfThreads) {
+    public RMAQueueProcessor(BlockingQueue<Message> rmaInputQueue, BlockingQueue<Message> rmaOutputQueue, BlockingQueue<Message> responseQueue, List<BlockingQueue<Message>> qcmSites, int rmaInputQueueConsumers, int rmaOutputQueueConsumers, int responseQueueConsumers) {
         this.rmaInputQueue = rmaInputQueue;
         this.rmaOutputQueue = rmaOutputQueue;
         this.responseQueue = responseQueue;
         this.qcmSiteList = qcmSites;
-        this.numberOfMessages = numberOfMessage;
-        this.numberOfThreads = numberOfThreads;
+        this.rmaInputQueueConsumers = rmaInputQueueConsumers;
+        this.rmaOutputQueueConsumers = rmaOutputQueueConsumers;
+        this.responseQueueConsumers = responseQueueConsumers;
         BasicThreadFactory factory = new BasicThreadFactory.Builder()
                 .namingPattern("RMA-Queue-Processor-%d")
                 .priority(Thread.MAX_PRIORITY)
                 .build();
-        consumerExecutor = new ThreadPoolExecutor(numberOfThreads, numberOfThreads, 20, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(), factory);
+        consumerExecutor = new ThreadPoolExecutor(this.rmaInputQueueConsumers, this.rmaInputQueueConsumers, 20, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(), factory);
     }
 
 
     public void sendToQCMSites() throws InterruptedException {
-        long startTime = System.currentTimeMillis();
-
         Runnable consumerTask = () -> {
+            long startTime = System.currentTimeMillis();
+            int count =  0;
             try {
                 while (true) {
                     Message message = rmaInputQueue.take();
@@ -52,16 +54,29 @@ public class RMAQueueProcessor {
                     }
 
                     sendMessageToDestination(message);
+                    count++;
                 }
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
             long endTime = System.currentTimeMillis();
-            LOGGER.info("Message pushed to QCMSites in " + (endTime - startTime) + " milis");
+            LOGGER.info(count+" Message pushed to QCMSites in " + (endTime - startTime) + " milis");
+        };
+        Runnable poisonPillTask = () -> {
+            for (int i = 0; i < qcmSiteList.size(); i++) {
+                Message message = new Message("TERM");
+                message.setDestinationId(i);
+                qcmSiteList.get(i).offer(message);
+            }
         };
 
-        for (int i = 0; i < numberOfThreads; i++) {
-            consumerExecutor.execute(consumerTask);
+        List<Runnable> runnableList = new ArrayList<>();
+        for (int i = 0; i < rmaInputQueueConsumers; i++) {
+            runnableList.add(consumerTask);
+        }
+        runnableList.add(poisonPillTask);
+        for (Runnable runnable:runnableList) {
+            consumerExecutor.execute(runnable);
         }
     }
 
@@ -73,39 +88,49 @@ public class RMAQueueProcessor {
 
     public void sendResponse() {
         Runnable responseTask = () -> {
+            int count = 0;
             try {
                 while (true) {
                     Message message = rmaOutputQueue.take();
                     //LOGGER.info("Message:: "+message);
-                    if (message.getType() == "TERM") {
+                   if (message.getType() == "TERM") {
                         LOGGER.info("Message type is TERM TYPE so breaking the loop in sendResponse in " + Thread.currentThread().getName());
                         break;
                     }
                     responseQueue.offer(message);
+                   count++;
                 }
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
+            LOGGER.info(count +" Message read from rmaOutputQueue by "+Thread.currentThread().getName());
         };
+
+        Runnable poisonPillTask = () -> {
+            for (int i = 0; i < this.responseQueueConsumers; i++) {
+                Message message = new Message("TERM");
+                responseQueue.offer(message);
+            }
+        };
+
+        List<Runnable> runnableList = new ArrayList<>();
+        for (int i = 0; i < rmaOutputQueueConsumers; i++) {
+            runnableList.add(responseTask);
+        }
+        runnableList.add(poisonPillTask);
 
         BasicThreadFactory factory = new BasicThreadFactory.Builder()
                 .namingPattern("RMA-Response-Handler-%d")
                 .priority(Thread.MAX_PRIORITY)
                 .build();
-        responseExecutor = Executors.newFixedThreadPool(numberOfThreads,factory);
-        for(int i=0;i<numberOfThreads;i++){
-            responseExecutor.submit(responseTask);
+        responseExecutor = Executors.newFixedThreadPool(rmaOutputQueueConsumers,factory);
+
+        for(Runnable runnable:runnableList){
+            responseExecutor.submit(runnable);
         }
     }
 
             public void stop () throws InterruptedException {
-
-                for (int i = 0; i < qcmSiteList.size(); i++) {
-                    Message message = new Message("TERM");
-                    message.setDestinationId(i);
-                    qcmSiteList.get(i).offer(message);
-                }
-
                 long startTime = System.currentTimeMillis();
                 LOGGER.info("Workload shutdown triggered:");
                 consumerExecutor.shutdown();
@@ -113,9 +138,13 @@ public class RMAQueueProcessor {
                 long endTime = System.currentTimeMillis();
                 LOGGER.info("Workload shutdown passed:" + (endTime - startTime));
                 startTime = System.currentTimeMillis();
-                consumerExecutor.awaitTermination(1000, TimeUnit.MILLISECONDS);
+                consumerExecutor.awaitTermination(1000, TimeUnit.SECONDS);
                 LOGGER.info("Waited for Termination:" + (System.currentTimeMillis() - startTime));
+
+            }
+
+            public void shutdownResponseProcess() throws InterruptedException {
                 responseExecutor.shutdown();
-                consumerExecutor.awaitTermination(1000, TimeUnit.MILLISECONDS);
+                responseExecutor.awaitTermination(1000, TimeUnit.SECONDS);
             }
         }

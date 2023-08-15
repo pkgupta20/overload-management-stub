@@ -35,6 +35,7 @@ public class QCMDispatcher {
 
         for (BlockingQueue<Message> qcmSite: qcmSiteList) {
                 Runnable runnable = () -> {
+                    int count = 0;
                     while (true) {
                         try {
                             Message message = qcmSite.take();
@@ -43,15 +44,27 @@ public class QCMDispatcher {
                                 break;
                             }
                             processMessage(message);
+                            count++;
                         } catch (InterruptedException e) {
                             throw new RuntimeException(e);
                         }
                     }
-                    LOGGER.info("Message Pushed to QCM Node :: "+Thread.currentThread().getName());
+                    LOGGER.info(count+" Message Pushed to QCM Node :: "+Thread.currentThread().getName());
                 };
 
                 runnables.add(runnable);
         }
+        Runnable poisonPillTask = () -> {
+            for(int i=0;i<qcmSiteList.size();i++) {
+                for (int j = 0; j < qcmNodePerSite; j++) {
+                    Message message = new Message("TERM");
+                    message.setDestinationId(i);
+                    message.setNodeId(j);
+                    qcmNodeMap.get(i).get(j).offer(message);
+                }
+            }
+        };
+        runnables.add(poisonPillTask);
 
         BasicThreadFactory factory = new BasicThreadFactory.Builder()
                 .namingPattern("QCMDispatcher-%d")
@@ -67,15 +80,6 @@ public class QCMDispatcher {
 
     public void stop() throws InterruptedException {
 
-        for(int i=0;i<qcmSiteList.size();i++) {
-            for (int j = 0; j < qcmNodePerSite; j++) {
-                Message message = new Message("TERM");
-                message.setDestinationId(i);
-                message.setNodeId(j);
-                //qcmSiteList.get(i).offer(message);
-                qcmNodeMap.get(i).get(j).offer(message);
-            }
-        }
         long startTime = System.currentTimeMillis();
         LOGGER.info("QCMProcessor shutdown triggered:");
         executorService.shutdown();
@@ -87,7 +91,6 @@ public class QCMDispatcher {
     }
 
     public void processMessage(Message message) throws InterruptedException {
-        Thread.sleep(10);
         int nodeId = message.getNodeId();
         int siteId = message.getDestinationId();
         qcmNodeMap.get(siteId).get(nodeId).offer(message);
