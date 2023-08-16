@@ -14,7 +14,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class App
 {
     private static final Logger LOGGER = Logger.getLogger(App.class);
-    private static final String FILE_NAME = "target/output.txt";
+
 
     private static List<BlockingQueue<Message>> qcmSiteList;
 
@@ -23,15 +23,20 @@ public class App
 
     public static void main( String[] args ) throws IOException, InterruptedException {
 
-        int numberOfMessages = 100000;
-        int numberOfThreads = 10;
-        int ddrsCounsumer = 10;
-        int rmaInputConsumer = 10;
-        int rmaOutputQueueConsumers = 10;
-        int responseQueueConsumers = 10;
-        int numberOfConsumerThreads = 10;
-        int qcmSites = 3;
-        int qcmNodePerSite = 3;
+        ConfigFileReader configFileReader = new ConfigFileReader();
+        ConfigurationDTO configurationDTO = configFileReader.readPropValues();
+
+        String FILE_NAME = "target/output.txt";
+//        String FILE_NAME = configurationDTO.getOutFile();
+        int numberOfMessages = configurationDTO.getNumberOfMessages();
+        int numberOfThreads = configurationDTO.getNumberOfThreads();
+        int ddrsConsumers = configurationDTO.getDdrsConsumers();
+        int rmaInputConsumer = configurationDTO.getRmaInputConsumer();
+        int rmaOutputQueueConsumers = configurationDTO.getRmaOutputQueueConsumers();
+        int responseQueueConsumers = configurationDTO.getResponseQueueConsumers();
+        int numberOfConsumerThreads = configurationDTO.getNumberOfConsumerThreads();
+        int qcmSites = configurationDTO.getQcmSites();
+        int qcmNodePerSite = configurationDTO.getQcmNodePerSite();
 
         LinkedBlockingQueue<Message> marbenQueue = new LinkedBlockingQueue<>();
         LinkedBlockingQueue<Message> rmaInputQueue = new LinkedBlockingQueue<>();
@@ -40,7 +45,7 @@ public class App
         initQCMSites(qcmSites);
         initQCMNodes(qcmSites, qcmNodePerSite);
 
-        WorkloadGenerator generator = new WorkloadGenerator(numberOfMessages,numberOfThreads,marbenQueue,ddrsCounsumer);
+        WorkloadGenerator generator = new WorkloadGenerator(numberOfMessages,numberOfThreads,marbenQueue,ddrsConsumers);
 
         DDRSStub ddrsStub = new DDRSStub(marbenQueue,numberOfMessages, rmaInputQueue,qcmSites,numberOfThreads,qcmNodePerSite);
         QCMProcessor qcmProcessor = new QCMProcessor(rmaOutputQueue,qcmNodePerSite,qcmNodeMap,rmaOutputQueueConsumers);
