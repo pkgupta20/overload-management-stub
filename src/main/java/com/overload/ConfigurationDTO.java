@@ -7,11 +7,10 @@ import java.util.Properties;
 public class ConfigurationDTO {
     private int numberOfMessages;
     private int numberOfThreads;
-    private  int ddrsConsumers;
-    private  int rmaInputConsumer;
-    private  int rmaOutputQueueConsumers;
-    private  int responseQueueConsumers;
-    private int numberOfConsumerThreads;
+    private int ddrsConsumers;
+    private int rmaInputConsumer;
+    private int rmaOutputQueueConsumers;
+    private int responseQueueConsumers;
     private int qcmSites;
 
     private int qcmNodePerSite;
@@ -23,15 +22,14 @@ public class ConfigurationDTO {
         try {
             this.numberOfThreads = Integer.valueOf(properties.getProperty("numberOfThreads", "10"));
             this.numberOfMessages = Integer.valueOf(properties.getProperty("numberOfMessages", "1000"));
-            this.numberOfConsumerThreads = Integer.valueOf(properties.getProperty("numberOfConsumerThreads","10"));
             this.ddrsConsumers = Integer.valueOf(properties.getProperty("ddrsConsumers"));
             this.rmaInputConsumer = Integer.valueOf(properties.getProperty("rmaInputConsumer"));
             this.rmaOutputQueueConsumers = Integer.valueOf(properties.getProperty("rmaOutputQueueConsumers"));
             this.responseQueueConsumers = Integer.valueOf(properties.getProperty("responseQueueConsumers"));
             this.qcmSites = Integer.valueOf(properties.getProperty("qcmSites", "3"));
-            this.qcmNodePerSite = Integer.valueOf(properties.getProperty("qcmNodePerSite","3"));
+            this.qcmNodePerSite = Integer.valueOf(properties.getProperty("qcmNodePerSite", "3"));
             this.outFile = properties.getProperty("outFile", "target/output");
-        }catch(Exception e){
+        } catch (Exception e) {
             LOGGER.error("Please check following values " +
                     "in property file numberOfThreads, numberOfMessages, " +
                     "qcmSites, outFile", e);
@@ -62,10 +60,6 @@ public class ConfigurationDTO {
         return responseQueueConsumers;
     }
 
-    public int getNumberOfConsumerThreads() {
-        return numberOfConsumerThreads;
-    }
-
     public int getQcmSites() {
         return qcmSites;
     }
@@ -83,11 +77,10 @@ public class ConfigurationDTO {
         return "ConfigurationDTO{" +
                 "numberOfMessages=" + numberOfMessages +
                 ", numberOfThreads=" + numberOfThreads +
-                ", ddrsCounsumer=" + ddrsConsumers +
+                ", ddrsConsumers=" + ddrsConsumers +
                 ", rmaInputConsumer=" + rmaInputConsumer +
                 ", rmaOutputQueueConsumers=" + rmaOutputQueueConsumers +
                 ", responseQueueConsumers=" + responseQueueConsumers +
-                ", numberOfConsumerThreads=" + numberOfConsumerThreads +
                 ", qcmSites=" + qcmSites +
                 ", qcmNodePerSite=" + qcmNodePerSite +
                 ", outFile='" + outFile + '\'' +

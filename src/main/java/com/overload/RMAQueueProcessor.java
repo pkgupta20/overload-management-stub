@@ -40,7 +40,6 @@ public class RMAQueueProcessor {
         consumerExecutor = new ThreadPoolExecutor(this.rmaInputQueueConsumers, this.rmaInputQueueConsumers, 20, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(), factory);
     }
 
-
     public void sendToQCMSites() throws InterruptedException {
         Runnable consumerTask = () -> {
             long startTime = System.currentTimeMillis();

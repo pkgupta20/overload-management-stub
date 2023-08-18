@@ -13,15 +13,12 @@ public class DDRSStub {
     private int numberOfThreads;
     private BlockingQueue<Message> rmaInputQueue;
     private int qcmSites;
-    private int numberOfMessages;
-
     private int qcmNodePerSite;
     private static final Logger LOGGER = Logger.getLogger(DDRSStub.class);
-    public DDRSStub(BlockingQueue<Message> marbenQueue, int numberOfMessages, BlockingQueue<Message> rmaInputQueue, int qcmSites, int numberOfThreads,int qcmNodePerSite){
+    public DDRSStub(BlockingQueue<Message> marbenQueue, BlockingQueue<Message> rmaInputQueue, int qcmSites, int numberOfThreads,int qcmNodePerSite){
         this.marbenQueue = marbenQueue;
         this.rmaInputQueue = rmaInputQueue;
         this.qcmSites = qcmSites;
-        this.numberOfMessages = numberOfMessages;
         this.numberOfThreads = numberOfThreads;
         this.qcmNodePerSite = qcmNodePerSite;
         BasicThreadFactory factory = new BasicThreadFactory.Builder()

@@ -14,14 +14,13 @@ public class ResponseReader {
     private static final Logger LOGGER = Logger.getLogger(ResponseReader.class);
 
     private final String fileName;
-    private int numberOfMessages;
+
     private int responseQueueConsumers;
     private ExecutorService service;
 
     public ResponseReader(BlockingQueue<Message> mQueue,int responseQueueConsumers,String fileName){
         responseQueue = mQueue;
         this.fileName = fileName;
-        this.numberOfMessages = numberOfMessages;
         this.responseQueueConsumers = responseQueueConsumers;
         BasicThreadFactory factory = new BasicThreadFactory.Builder()
                 .namingPattern("ResponseReader-%d")
@@ -67,15 +66,11 @@ public class ResponseReader {
 
     }
 
-    private void consumeMessage(Message message,FileWriter fileWriter) throws InterruptedException, IOException {
-        Thread.sleep(5);
-        synchronized (fileWriter){
+    private void consumeMessage(Message message, FileWriter fileWriter) throws InterruptedException, IOException {
+        synchronized (fileWriter) {
             fileWriter.write(message.toString() + System.lineSeparator());
-//            System.out.println(" wrote to file: " + message);
 
         }
-
-
     }
 
     public void shutdown() throws InterruptedException, IOException {
@@ -108,6 +103,14 @@ public class ResponseReader {
         }
         fileWriter.flush();
         fileWriter.close();
+
+        for (int i = 0; i < numberOfThreads; i++) {
+            String sourceFile = fileName+"-"+(i+1);
+            File file = new File(sourceFile);
+            file.delete();
+            LOGGER.info(sourceFile+" deleted");
+        }
+
 
     }
 

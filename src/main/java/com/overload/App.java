@@ -34,7 +34,6 @@ public class App
         int rmaInputConsumer = configurationDTO.getRmaInputConsumer();
         int rmaOutputQueueConsumers = configurationDTO.getRmaOutputQueueConsumers();
         int responseQueueConsumers = configurationDTO.getResponseQueueConsumers();
-        int numberOfConsumerThreads = configurationDTO.getNumberOfConsumerThreads();
         int qcmSites = configurationDTO.getQcmSites();
         int qcmNodePerSite = configurationDTO.getQcmNodePerSite();
 
@@ -46,8 +45,7 @@ public class App
         initQCMNodes(qcmSites, qcmNodePerSite);
 
         WorkloadGenerator generator = new WorkloadGenerator(numberOfMessages,numberOfThreads,marbenQueue,ddrsConsumers);
-
-        DDRSStub ddrsStub = new DDRSStub(marbenQueue,numberOfMessages, rmaInputQueue,qcmSites,numberOfThreads,qcmNodePerSite);
+        DDRSStub ddrsStub = new DDRSStub(marbenQueue, rmaInputQueue,qcmSites,numberOfThreads,qcmNodePerSite);
         QCMProcessor qcmProcessor = new QCMProcessor(rmaOutputQueue,qcmNodePerSite,qcmNodeMap,rmaOutputQueueConsumers);
         RMAQueueProcessor rmaQueueProcessor = new RMAQueueProcessor(rmaInputQueue,rmaOutputQueue,responseQueue,qcmSiteList,rmaInputConsumer, rmaOutputQueueConsumers, responseQueueConsumers);
         QCMDispatcher qcmDispatcher = new QCMDispatcher(qcmNodeMap,qcmSiteList,qcmNodePerSite);
