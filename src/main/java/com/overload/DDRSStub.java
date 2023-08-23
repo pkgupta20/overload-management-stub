@@ -36,14 +36,12 @@ public class DDRSStub {
             try {
                 int count = 0;
                 while(true) {
-
                     message = marbenQueue.take();
                     if (message != null) {
 
                         int siteId = randomSite.nextInt(qcmSites);
                         int nodeId = randomNode.nextInt(qcmNodePerSite);
                         message = processMessage(message,siteId,nodeId);
-                        rmaInputQueue.offer(message);
                         count++;
                         if(message.getType()=="TERM") {
                             LOGGER.info(" Message received in thread ::  " + message.getType() + "thread name: " + Thread.currentThread().getName());
