@@ -1,5 +1,6 @@
 package com.overload.threadpool;
 
+import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.apache.log4j.Logger;
 
 import java.util.ArrayList;
@@ -19,30 +20,33 @@ public class OCSOverloadEmulator {
         List<DDRSRMAEmulator> ddrsRmaEmulators;
         List<DDRSRMAReceiver> ddrsrmaReceivers;
 
-        int numberOfMessages = 5;
-        int producerThreads = 1;
-        int ddrsConsumers = 1;
-        int qcmConsumers = 1;
+        int numberOfMessages = 1000;
+        int producerThreads = 8;
+        int ddrsConsumers = 8;
+        int qcmConsumers = 8;
 
         List<BlockingQueue<Message>> qcmNodeList = initQueues(qcmConsumers);
-        List<BlockingQueue<Message>> qcmResponseQueues = initQueues(qcmConsumers);
+        List<BlockingQueue<Message>> qcmResponseQueues = initQueues(ddrsConsumers);
         ddrsRmaEmulators = initDdrsRmaEmulators(ddrsConsumers, qcmNodeList);
         ddrsrmaReceivers = initDDRSRmaReceivers(qcmResponseQueues,marbenResponseQueue,ddrsConsumers);
-        WorkloadGenerator workloadGenerator = new WorkloadGenerator(numberOfMessages, producerThreads, marbenQueue, ddrsConsumers,marbenResponseQueue);
+        NetworkEmulator networkEmulator = new NetworkEmulator(numberOfMessages, producerThreads, marbenQueue, ddrsConsumers,marbenResponseQueue);
         DDRSStub ddrsStub = new DDRSStub(marbenQueue, ddrsConsumers, qcmConsumers, ddrsRmaEmulators,ddrsrmaReceivers);
         QCMStub qcmStub = new QCMStub(qcmNodeList, qcmResponseQueues);
-        workloadGenerator.start();
+        QMonitor qMonitor = new QMonitor(marbenQueue);
+        qMonitor.start();
+        networkEmulator.start();
         ddrsStub.start();
         qcmStub.start();
-        workloadGenerator.stop();
+        networkEmulator.stop();
         ddrsStub.stop();
+        qMonitor.stop();
         LOGGER.info("MarbenQueue size:"+marbenQueue.size());
         LOGGER.info("MarbenResponseQueue size:"+marbenResponseQueue.size());
     }
 
     private static List<DDRSRMAReceiver> initDDRSRmaReceivers(List<BlockingQueue<Message>> qcmResponseQueues, BlockingQueue<Message> marbenResponseQueue, int producerThreads) {
-        List<DDRSRMAReceiver> ddrsrmaReceivers = new ArrayList<>(qcmResponseQueues.size());
-        for (int i = 0; i < qcmResponseQueues.size(); i++) {
+        List<DDRSRMAReceiver> ddrsrmaReceivers = new ArrayList<>(producerThreads);
+        for (int i = 0; i < producerThreads; i++) {
             DDRSRMAReceiver ddrsrmaReceiver = new DDRSRMAReceiver(qcmResponseQueues.get(i),marbenResponseQueue,producerThreads);
             ddrsrmaReceivers.add(ddrsrmaReceiver);
         }
@@ -61,7 +65,12 @@ public class OCSOverloadEmulator {
     }
 
     private static RMAInputThreadPool getRmaInputThreadPool(List<BlockingQueue<Message>> qcmSiteNodeList) {
-        ExecutorService service = Executors.newFixedThreadPool(1);
+
+        BasicThreadFactory factory = new BasicThreadFactory.Builder()
+                .namingPattern("DDRS-RMA-Executor-Thread-%d")
+                .priority(Thread.MAX_PRIORITY)
+                .build();
+        ExecutorService service = Executors.newFixedThreadPool(5,factory);
         RMAInputThreadPool rmaInputThreadPool = new RMAInputThreadPool(service, qcmSiteNodeList);
         return rmaInputThreadPool;
     }

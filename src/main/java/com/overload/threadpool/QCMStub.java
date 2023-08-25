@@ -1,11 +1,8 @@
 package com.overload.threadpool;
 
-import java.sql.Array;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class QCMStub {
 
@@ -21,8 +18,11 @@ public class QCMStub {
 
     private List<QCMNode> initQcmNodes(List<BlockingQueue<Message>> qcmSiteNodeList) {
         List<QCMNode> qcmNodeList = new ArrayList<>(qcmSiteNodeList.size());
+        int count =0;
         for (int i = 0; i < qcmSiteNodeList.size(); i++) {
-            QCMRMAReceiver qcmrmaReceiver = new QCMRMAReceiver(qcmSiteNodeList.get(i),qcmResponseQueues.get(i));
+            QCMRMAReceiver qcmrmaReceiver = new QCMRMAReceiver(qcmSiteNodeList.get(i),qcmResponseQueues.get(count++));
+            if(count == qcmResponseQueues.size())
+                count=0;
             QCMNode qcmNode = new QCMNode(qcmrmaReceiver);
             qcmNodeList.add(qcmNode);
         }

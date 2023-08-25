@@ -1,5 +1,6 @@
 package com.overload.threadpool;
 
+import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.apache.log4j.Logger;
 
 import java.util.concurrent.BlockingQueue;
@@ -17,8 +18,16 @@ public class QCMRMAReceiver extends Thread{
     public QCMRMAReceiver(BlockingQueue<Message> nodeRequestQueue, BlockingQueue<Message> nodeResponseQueue) {
         this.nodeRequestQueue = nodeRequestQueue;
         this.nodeResponseQueue = nodeResponseQueue;
-        this.qcmInputAdapterThreadPool = Executors.newFixedThreadPool(1);
-        this.qcmRmaExecutorThreadPool = Executors.newFixedThreadPool(1);
+        BasicThreadFactory factory1 = new BasicThreadFactory.Builder()
+                .namingPattern("Qcm_Input_Adapter_Thread-%d")
+                .priority(Thread.MAX_PRIORITY)
+                .build();
+        BasicThreadFactory factory2 = new BasicThreadFactory.Builder()
+                .namingPattern("Qcm_Rma_Executor_Thread-%d")
+                .priority(Thread.MAX_PRIORITY)
+                .build();
+        this.qcmInputAdapterThreadPool = Executors.newFixedThreadPool(5,factory1);
+        this.qcmRmaExecutorThreadPool = Executors.newFixedThreadPool(5,factory2);
     }
 
     @Override

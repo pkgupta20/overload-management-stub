@@ -3,6 +3,7 @@ package com.overload.threadpool;
 import org.apache.log4j.Logger;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -29,6 +30,14 @@ public class RMAInputThreadPool {
     public void stop() throws InterruptedException {
         service.shutdown();
         service.awaitTermination(100, TimeUnit.MILLISECONDS);
+
+        for(int i=0;i<qcmSiteNodeQueueList.size();i++) {
+            Message message = new Message();
+            message.setUuid(UUID.randomUUID());
+            message.setType("TERM");
+            qcmSiteNodeQueueList.get(i).offer(message);
+        }
+
         qcmSiteNodeQueueList.forEach(qcmSiteNodeQueue -> {
             int i = 0;
             LOGGER.info("Queue "+i+" size:"+qcmSiteNodeQueue.size());

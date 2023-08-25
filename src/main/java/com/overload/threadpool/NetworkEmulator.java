@@ -12,7 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-public class WorkloadGenerator {
+public class NetworkEmulator {
     private static final String SIGTERM = "TERM";
     private final BlockingQueue<Message> marbenMessageQueue;
     private final BlockingQueue<Message> marbenResponseQueue;
@@ -27,9 +27,9 @@ public class WorkloadGenerator {
 
     private final int numberOfConsumerThreads;
 
-    private static final Logger LOGGER = Logger.getLogger(WorkloadGenerator.class);
+    private static final Logger LOGGER = Logger.getLogger(NetworkEmulator.class);
 
-    public WorkloadGenerator(int numberOfMessages, int numberOfThreads, BlockingQueue<Message> mQueue, int numberOfConsumerThreads, BlockingQueue<Message> marbenResponseQueue) {
+    public NetworkEmulator(int numberOfMessages, int numberOfThreads, BlockingQueue<Message> mQueue, int numberOfConsumerThreads, BlockingQueue<Message> marbenResponseQueue) {
         this.numberOfMessages = numberOfMessages;
         this.numberOfThreads = numberOfThreads;
         marbenMessageQueue = mQueue;
@@ -56,7 +56,6 @@ public class WorkloadGenerator {
             for (int i = 0; i < numberOfMessagePerThread; i++) {
                 Message message = getMessage();
                 marbenMessageQueue.offer(message);
-
             }
             LOGGER.info(numberOfMessagePerThread +" Message pushed in "+Thread.currentThread().getName());
         };
@@ -96,6 +95,11 @@ public class WorkloadGenerator {
     }
 
     private Message getMessage() {
+        try {
+            Thread.sleep(10);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         UUID uuid = UUID.randomUUID();
         String type = getType();
         long initTime = System.currentTimeMillis();
