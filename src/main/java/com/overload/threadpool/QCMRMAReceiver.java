@@ -6,6 +6,7 @@ import org.apache.log4j.Logger;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class QCMRMAReceiver extends Thread{
     BlockingQueue<Message> nodeRequestQueue;
@@ -36,13 +37,17 @@ public class QCMRMAReceiver extends Thread{
         Message message;
         while (true) {
             try {
-                message = nodeRequestQueue.take();
-                qcmInputAdapterThreadPool.submit(new QCMBusinessLogicEmulator(message, nodeResponseQueue, qcmRmaExecutorThreadPool));
-                count++;
-                if (message.getType().equals(TERM_SIGNAL)) {
+                message = nodeRequestQueue.poll(1, TimeUnit.SECONDS);
+
+                if(message == null)
+                {
                     LOGGER.info(count + " Message received in QCM Receiver.");
                     break;
                 }
+                count++;
+                qcmInputAdapterThreadPool.submit(new QCMBusinessLogicEmulator(message, nodeResponseQueue, qcmRmaExecutorThreadPool));
+
+
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }

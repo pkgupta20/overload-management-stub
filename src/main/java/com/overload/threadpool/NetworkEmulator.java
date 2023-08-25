@@ -2,6 +2,7 @@ package com.overload.threadpool;
 
 import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.apache.log4j.Logger;
+import sun.rmi.runtime.Log;
 
 import java.util.Map;
 import java.util.UUID;
@@ -13,7 +14,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 public class NetworkEmulator {
-    private static final String SIGTERM = "TERM";
     private final BlockingQueue<Message> marbenMessageQueue;
     private final BlockingQueue<Message> marbenResponseQueue;
     private final ExecutorService publisherExecutor;
@@ -32,7 +32,7 @@ public class NetworkEmulator {
     public NetworkEmulator(int numberOfMessages, int numberOfThreads, BlockingQueue<Message> mQueue, int numberOfConsumerThreads, BlockingQueue<Message> marbenResponseQueue) {
         this.numberOfMessages = numberOfMessages;
         this.numberOfThreads = numberOfThreads;
-        marbenMessageQueue = mQueue;
+        this.marbenMessageQueue = mQueue;
         this.numberOfConsumerThreads =  numberOfConsumerThreads;
         this.messageMap = new ConcurrentHashMap<>();
         this.marbenResponseQueue = marbenResponseQueue;
@@ -68,25 +68,24 @@ public class NetworkEmulator {
 
     private void receiveMessage() {
        Runnable receiverTask = () -> {
-
+           int count = 0;
            while(true)
            try {
 
-               Message receivedMessage = marbenResponseQueue.take();
+               Message receivedMessage = marbenResponseQueue.poll(1,TimeUnit.SECONDS);
+               count++;
+               if(receivedMessage == null) {
+                   LOGGER.info("Total Read message by this thread:"+count+" now exiting."+Thread.currentThread().getName());
+                   break;
+               }
                Message message = messageMap.remove(receivedMessage.getUuid());
                if(message != null)
                    message.setTotalTimeInProcessing(System.currentTimeMillis() - message.getInitTime());
                LOGGER.info(message);
-               if(receivedMessage.getType().equals(SIGTERM)){
-                   break;
-               }
+
            } catch (InterruptedException e) {
                throw new RuntimeException(e);
            }
-
-
-
-
         };
 
         for (int i = 0; i < numberOfThreads; i++) {
@@ -127,15 +126,7 @@ public class NetworkEmulator {
         long startTime = System.currentTimeMillis();
         LOGGER.info("Workload shutdown triggered:");
         publisherExecutor.shutdown();
-        while(!publisherExecutor.isTerminated()){
-            Thread.sleep(100);
-        }
-        for(int i=0;i<numberOfConsumerThreads;i++) {
-            Message message = new Message();
-            message.setUuid(UUID.randomUUID());
-            message.setType("TERM");
-            marbenMessageQueue.offer(message);
-        }
+
         long endTime = System.currentTimeMillis();
         LOGGER.info("Workload shutdown passed:"+(endTime - startTime));
         startTime = System.currentTimeMillis();

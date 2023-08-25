@@ -31,17 +31,10 @@ public class RMAInputThreadPool {
         service.shutdown();
         service.awaitTermination(100, TimeUnit.MILLISECONDS);
 
-        for(int i=0;i<qcmSiteNodeQueueList.size();i++) {
-            Message message = new Message();
-            message.setUuid(UUID.randomUUID());
-            message.setType("TERM");
-            qcmSiteNodeQueueList.get(i).offer(message);
-        }
-
         qcmSiteNodeQueueList.forEach(qcmSiteNodeQueue -> {
             int i = 0;
-            LOGGER.info("Queue "+i+" size:"+qcmSiteNodeQueue.size());
-            i++;
+            LOGGER.info("Queue "+i+++" size:"+qcmSiteNodeQueue.size());
+
         });
     }
 }

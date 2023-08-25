@@ -4,6 +4,7 @@ import org.apache.log4j.Logger;
 
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 public class DDRSNode implements Runnable{
     BlockingQueue<Message> marbenQueue;
@@ -29,7 +30,12 @@ public class DDRSNode implements Runnable{
         int count = 0;
         while(true){
             try {
-                message = marbenQueue.take();
+                message = marbenQueue.poll(1, TimeUnit.SECONDS);
+                if(message == null){
+
+                    LOGGER.info(count+" Message received in thread ::  " + Thread.currentThread().getName());
+                    break;
+                }
                 message.setNodeId(randomNode.nextInt(this.qcmNodes));
                 message = processMessage(message);
                 count++;

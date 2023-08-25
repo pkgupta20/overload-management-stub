@@ -21,14 +21,14 @@ public class OCSOverloadEmulator {
         List<DDRSRMAReceiver> ddrsrmaReceivers;
 
         int numberOfMessages = 1000;
-        int producerThreads = 8;
-        int ddrsConsumers = 8;
-        int qcmConsumers = 8;
+        int producerThreads = 1;
+        int ddrsConsumers = 10;
+        int qcmConsumers = 1;
 
         List<BlockingQueue<Message>> qcmNodeList = initQueues(qcmConsumers);
         List<BlockingQueue<Message>> qcmResponseQueues = initQueues(ddrsConsumers);
         ddrsRmaEmulators = initDdrsRmaEmulators(ddrsConsumers, qcmNodeList);
-        ddrsrmaReceivers = initDDRSRmaReceivers(qcmResponseQueues,marbenResponseQueue,ddrsConsumers);
+        ddrsrmaReceivers = initDDRSRmaReceivers(qcmResponseQueues,marbenResponseQueue,producerThreads);
         NetworkEmulator networkEmulator = new NetworkEmulator(numberOfMessages, producerThreads, marbenQueue, ddrsConsumers,marbenResponseQueue);
         DDRSStub ddrsStub = new DDRSStub(marbenQueue, ddrsConsumers, qcmConsumers, ddrsRmaEmulators,ddrsrmaReceivers);
         QCMStub qcmStub = new QCMStub(qcmNodeList, qcmResponseQueues);
@@ -44,10 +44,11 @@ public class OCSOverloadEmulator {
         LOGGER.info("MarbenResponseQueue size:"+marbenResponseQueue.size());
     }
 
-    private static List<DDRSRMAReceiver> initDDRSRmaReceivers(List<BlockingQueue<Message>> qcmResponseQueues, BlockingQueue<Message> marbenResponseQueue, int producerThreads) {
-        List<DDRSRMAReceiver> ddrsrmaReceivers = new ArrayList<>(producerThreads);
-        for (int i = 0; i < producerThreads; i++) {
-            DDRSRMAReceiver ddrsrmaReceiver = new DDRSRMAReceiver(qcmResponseQueues.get(i),marbenResponseQueue,producerThreads);
+    private static List<DDRSRMAReceiver> initDDRSRmaReceivers(List<BlockingQueue<Message>> qcmResponseQueues, BlockingQueue<Message> marbenResponseQueue, int marbenResponseConsumers) {
+        int ddrsNodes = qcmResponseQueues.size();
+        List<DDRSRMAReceiver> ddrsrmaReceivers = new ArrayList<>(ddrsNodes);
+        for (int i = 0; i < ddrsNodes; i++) {
+            DDRSRMAReceiver ddrsrmaReceiver = new DDRSRMAReceiver(qcmResponseQueues.get(i),marbenResponseQueue,marbenResponseConsumers);
             ddrsrmaReceivers.add(ddrsrmaReceiver);
         }
         return ddrsrmaReceivers;
