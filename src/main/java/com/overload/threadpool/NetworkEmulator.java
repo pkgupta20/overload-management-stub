@@ -2,16 +2,10 @@ package com.overload.threadpool;
 
 import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.apache.log4j.Logger;
-import sun.rmi.runtime.Log;
 
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 public class NetworkEmulator {
     private final BlockingQueue<Message> marbenMessageQueue;
@@ -27,9 +21,13 @@ public class NetworkEmulator {
 
     private final int numberOfConsumerThreads;
 
+    private final int noOfIteration;
+
+    private ScheduledExecutorService messagePublisherExecutor;
+
     private static final Logger LOGGER = Logger.getLogger(NetworkEmulator.class);
 
-    public NetworkEmulator(int numberOfMessages, int numberOfThreads, BlockingQueue<Message> mQueue, int numberOfConsumerThreads, BlockingQueue<Message> marbenResponseQueue) {
+    public NetworkEmulator(int numberOfMessages, int numberOfThreads, BlockingQueue<Message> mQueue, int numberOfConsumerThreads, BlockingQueue<Message> marbenResponseQueue,int noOfIteration) {
         this.numberOfMessages = numberOfMessages;
         this.numberOfThreads = numberOfThreads;
         this.marbenMessageQueue = mQueue;
@@ -42,10 +40,15 @@ public class NetworkEmulator {
                 .build();
         publisherExecutor = Executors.newFixedThreadPool(numberOfThreads,factory);
         receiverExecutor = Executors.newFixedThreadPool(numberOfThreads,factory);
+
+        messagePublisherExecutor = Executors.newScheduledThreadPool(1);
+        this.noOfIteration=noOfIteration;
+
     }
 
     public void start() {
-        publishMessage();
+        //publishMessage();
+        messagePublisher();
         receiveMessage();
 
     }
@@ -65,6 +68,11 @@ public class NetworkEmulator {
          }
     }
 
+    private void messagePublisher(){
+        MessagePublisher messagePublisher=new MessagePublisher(numberOfMessages,noOfIteration,marbenMessageQueue,messageMap,messagePublisherExecutor);
+        messagePublisherExecutor.scheduleAtFixedRate(messagePublisher,0,1,TimeUnit.SECONDS);
+    }
+
 
     private void receiveMessage() {
        Runnable receiverTask = () -> {
@@ -72,7 +80,7 @@ public class NetworkEmulator {
            while(true)
            try {
 
-               Message receivedMessage = marbenResponseQueue.poll(1,TimeUnit.SECONDS);
+               Message receivedMessage = marbenResponseQueue.poll(2,TimeUnit.SECONDS);
                count++;
                if(receivedMessage == null) {
                    LOGGER.info("Total Read message by this thread:"+count+" now exiting."+Thread.currentThread().getName());

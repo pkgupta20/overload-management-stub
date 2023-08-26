@@ -37,7 +37,7 @@ public class QCMRMAReceiver extends Thread{
         Message message;
         while (true) {
             try {
-                message = nodeRequestQueue.poll(1, TimeUnit.SECONDS);
+                message = nodeRequestQueue.poll(2, TimeUnit.SECONDS);
 
                 if(message == null)
                 {
@@ -59,11 +59,7 @@ public class QCMRMAReceiver extends Thread{
 
     private void shutdownThreadPool() {
         qcmInputAdapterThreadPool.shutdown();
-        try {
-            Thread.sleep(10);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+
         qcmRmaExecutorThreadPool.shutdown();
 
 

@@ -3,7 +3,6 @@ package com.overload.threadpool;
 import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.apache.log4j.Logger;
 
-import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -39,7 +38,7 @@ public class DDRSRMAReceiver extends Thread{
             Message message = null;
             try {
                 //message = nodeQueue.take();
-                message = nodeQueue.poll(1, TimeUnit.SECONDS);
+                message = nodeQueue.poll(2, TimeUnit.SECONDS);
                 //message = nodeRequestQueue.take();
                 //wait for second and if message is null then exit from the loop
                 if (message == null) {

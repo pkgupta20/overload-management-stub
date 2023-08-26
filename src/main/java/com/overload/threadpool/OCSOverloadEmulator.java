@@ -20,16 +20,17 @@ public class OCSOverloadEmulator {
         List<DDRSRMAEmulator> ddrsRmaEmulators;
         List<DDRSRMAReceiver> ddrsrmaReceivers;
 
-        int numberOfMessages = 1000;
+        int numberOfMessages = 50;
         int producerThreads = 1;
-        int ddrsConsumers = 10;
+        int ddrsConsumers = 1;
         int qcmConsumers = 1;
+        int noOfIteration = 15;
 
         List<BlockingQueue<Message>> qcmNodeList = initQueues(qcmConsumers);
         List<BlockingQueue<Message>> qcmResponseQueues = initQueues(ddrsConsumers);
         ddrsRmaEmulators = initDdrsRmaEmulators(ddrsConsumers, qcmNodeList);
         ddrsrmaReceivers = initDDRSRmaReceivers(qcmResponseQueues,marbenResponseQueue,producerThreads);
-        NetworkEmulator networkEmulator = new NetworkEmulator(numberOfMessages, producerThreads, marbenQueue, ddrsConsumers,marbenResponseQueue);
+        NetworkEmulator networkEmulator = new NetworkEmulator(numberOfMessages, producerThreads, marbenQueue, ddrsConsumers,marbenResponseQueue, noOfIteration);
         DDRSStub ddrsStub = new DDRSStub(marbenQueue, ddrsConsumers, qcmConsumers, ddrsRmaEmulators,ddrsrmaReceivers);
         QCMStub qcmStub = new QCMStub(qcmNodeList, qcmResponseQueues);
         QMonitor qMonitor = new QMonitor(marbenQueue);

@@ -30,7 +30,7 @@ public class DDRSNode implements Runnable{
         int count = 0;
         while(true){
             try {
-                message = marbenQueue.poll(1, TimeUnit.SECONDS);
+                message = marbenQueue.poll(2, TimeUnit.SECONDS);
                 if(message == null){
 
                     LOGGER.info(count+" Message received in thread ::  " + Thread.currentThread().getName());
@@ -57,7 +57,7 @@ public class DDRSNode implements Runnable{
     }
 
     private Message processMessage(Message message) throws InterruptedException {
-        Thread.sleep(10);
+        //Thread.sleep(10);
         this.ddrsRmaEmulator.submit(message);
         return message;
     }
