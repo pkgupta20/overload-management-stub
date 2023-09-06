@@ -1,10 +1,16 @@
 package com.overload.threadpool;
 
+import com.overload.threadpool.util.Message;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.concurrent.BlockingQueue;
 
 public class MarbenResponseSendingTask implements Runnable {
-    private Message message;
-    private BlockingQueue<Message> marbenResponseQueue;
+    private static final Logger LOGGER = LoggerFactory.getLogger(MarbenResponseSendingTask.class);
+    private final Message message;
+    private final BlockingQueue<Message> marbenResponseQueue;
+
 
     public MarbenResponseSendingTask(Message message, BlockingQueue<Message> marbenResponseQueue) {
         this.message = message;
@@ -13,7 +19,7 @@ public class MarbenResponseSendingTask implements Runnable {
 
     @Override
     public void run() {
-        marbenResponseQueue.offer(message);
-
+        boolean offer = marbenResponseQueue.offer(message);
+        LOGGER.debug("{} pushed {}", message, offer);
     }
 }

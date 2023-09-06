@@ -1,12 +1,18 @@
-package com.overload;
+package com.overload.threadpool.util;
 
-import org.apache.log4j.Logger;
 
-import java.io.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.Properties;
 
 public final class ConfigFileReader {
-    private static final Logger LOGGER = Logger.getLogger(ConfigFileReader.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(ConfigFileReader.class);
     public ConfigurationDTO readPropValues() throws IOException {
         InputStream inputStream = null;
         try {
@@ -14,7 +20,7 @@ public final class ConfigFileReader {
             Properties props = new Properties();
             String propFileName = "config.properties";
             if (System.getProperty("appConfigFile") != null) {
-                inputStream = new FileInputStream(new File(System.getProperty("appConfigFile")));
+                inputStream = Files.newInputStream(new File(System.getProperty("appConfigFile")).toPath());
             } else {
                 inputStream = getClass().getClassLoader().getResourceAsStream(propFileName);
             }

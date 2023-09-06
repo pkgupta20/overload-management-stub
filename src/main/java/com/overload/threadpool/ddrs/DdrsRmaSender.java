@@ -1,9 +1,13 @@
-package com.overload.threadpool;
+package com.overload.threadpool.ddrs;
 
-public class DDRSRMAEmulator {
-    RMAInputThreadPool rmaInputThreadPool;
 
-    public DDRSRMAEmulator(RMAInputThreadPool rmaInputThreadPool) {
+import com.overload.threadpool.rma.RmaInputThreadPool;
+import com.overload.threadpool.util.Message;
+
+public class DdrsRmaSender {
+    RmaInputThreadPool rmaInputThreadPool;
+
+    public DdrsRmaSender(RmaInputThreadPool rmaInputThreadPool) {
         this.rmaInputThreadPool = rmaInputThreadPool;
     }
     public void submit(Message message){
