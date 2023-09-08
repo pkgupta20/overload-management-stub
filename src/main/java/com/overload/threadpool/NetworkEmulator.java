@@ -2,6 +2,7 @@ package com.overload.threadpool;
 
 
 import com.overload.threadpool.util.RateLimiter;
+import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.overload.threadpool.util.Message;
@@ -31,18 +32,20 @@ public class NetworkEmulator {
     private final int numberOfMessages;
     private final int numberOfThreads;
     private final int numberOfIteration;
+    private final Timer timer;
 
 
 
 
 
-    public NetworkEmulator(int numberOfMessages, int numberOfIteration, int numberOfThreads, BlockingQueue<Message> mQueue, BlockingQueue<Message> marbenResponseQueue) {
+    public NetworkEmulator(int numberOfMessages, int numberOfIteration, int numberOfThreads, BlockingQueue<Message> mQueue, BlockingQueue<Message> marbenResponseQueue, Timer timer) {
         this.numberOfMessages = numberOfMessages;
         this.numberOfThreads = numberOfThreads;
         this.marbenMessageQueue = mQueue;
         this.messageMap = new ConcurrentHashMap<>();
         this.marbenResponseQueue = marbenResponseQueue;
         this.numberOfIteration = numberOfIteration;
+        this.timer = timer;
 
         publisherExecutor = Executors.newScheduledThreadPool(1);
         receiverExecutor = Executors.newFixedThreadPool(this.numberOfThreads);
@@ -89,7 +92,9 @@ public class NetworkEmulator {
                     }
                     Message message = messageMap.remove(receivedMessage.getUuid());
                     if (message != null) {
-                        long elapsedTimeInMilis = (System.nanoTime() - message.getInitTime())/NANO_TO_MILIS;
+                        long elapsedTimeInNanos =System.nanoTime() - message.getInitTime();
+                        timer.record(elapsedTimeInNanos, TimeUnit.NANOSECONDS);
+                        long elapsedTimeInMilis = elapsedTimeInNanos/NANO_TO_MILIS;
                         message.setTotalTimeInProcessing(elapsedTimeInMilis);
                         LOGGER.info("{}",message);
 

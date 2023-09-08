@@ -9,8 +9,15 @@ import com.overload.threadpool.qcm.QcmStub;
 import com.overload.threadpool.rma.RmaInputThreadPool;
 import com.overload.threadpool.util.ConfigFileReader;
 import com.overload.threadpool.util.ConfigurationDTO;
+import com.overload.threadpool.util.MetricSampler;
+import com.overload.threadpool.util.MicrometerConfig;
 import com.overload.threadpool.util.QueueMonitor;
 import com.overload.threadpool.util.Message;
+import io.micrometer.core.instrument.Clock;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.simple.SimpleConfig;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +38,9 @@ public class OcsOverloadEmulator {
         BlockingQueue<Message> marbenResponseQueue = new LinkedBlockingQueue<>();
         List<DdrsRmaSender> ddrsRmaddrsRmaSenders;
         List<DdrsRmaReceiver> ddrsRmaReceivers;
+        SimpleConfig simpleConfig = new MicrometerConfig();
+        MeterRegistry registry = new SimpleMeterRegistry(simpleConfig, Clock.SYSTEM);
+        Timer timer = getTimer(registry);
         LOGGER.info("OCS Overload Emulator Started...");
 
 
@@ -39,7 +49,7 @@ public class OcsOverloadEmulator {
         LOGGER.info("{}", configurationDTO);
 
         int numberOfMessages = configurationDTO.getNumberOfMessages();
-        int producerThreads = configurationDTO.getProducerThreads();
+        int producerThreads = configurationDTO.getConsumerThreads();
         int ddrsConsumers = configurationDTO.getDdrsConsumers();
         int qcmConsumers = configurationDTO.getQcmConsumers();
         int numberOfIterations = configurationDTO.getNumberOfIterations();
@@ -47,17 +57,20 @@ public class OcsOverloadEmulator {
         int rmaInputAdapterThreadPoolSize = configurationDTO.getRmaInputThreadPoolSize();
         int rmaExecutorThreadPoolSize = configurationDTO.getRmaExecutorThreadPoolSize();
         int qcmInputAdapterThreadPoolSize = configurationDTO.getQcmInputAdapterThreadPoolSize();
-        int qcmProcessingTime = configurationDTO.getQcmProcessingTime();
-        int ddrsProcessingTime = configurationDTO.getDdrsProcessingTime();
+        int qcmProcessingTime = configurationDTO.getQcmProcessingTimeMs();
+        int ddrsProcessingTime = configurationDTO.getDdrsProcessingTimeMs();
+        int pollTimeInSeconds = configurationDTO.getPollTimeInSeconds();
 
         List<BlockingQueue<Message>> qcmNodeList = initQueues(qcmConsumers);
         List<BlockingQueue<Message>> qcmResponseQueues = initQueues(ddrsConsumers);
         ddrsRmaddrsRmaSenders = initDdrsRmaSenders(ddrsConsumers, qcmNodeList, rmaInputAdapterThreadPoolSize);
         ddrsRmaReceivers = initDDRSRmaReceivers(qcmResponseQueues, marbenResponseQueue, ddrsExecutorThreadPoolSize);
-        NetworkEmulator networkEmulator = new NetworkEmulator(numberOfMessages, numberOfIterations, producerThreads, marbenQueue, marbenResponseQueue);
+        NetworkEmulator networkEmulator = new NetworkEmulator(numberOfMessages, numberOfIterations, producerThreads, marbenQueue, marbenResponseQueue, timer);
         DdrsStub ddrsStub = new DdrsStub(marbenQueue, ddrsConsumers, qcmConsumers, ddrsRmaddrsRmaSenders, ddrsRmaReceivers, ddrsProcessingTime);
         QcmStub qcmStub = new QcmStub(qcmNodeList, qcmResponseQueues, qcmInputAdapterThreadPoolSize, rmaExecutorThreadPoolSize, qcmProcessingTime);
         QueueMonitor qMonitor = new QueueMonitor(marbenQueue);
+        MetricSampler metricSampler = new MetricSampler(registry,timer, pollTimeInSeconds);
+        metricSampler.start();
         qMonitor.start();
         networkEmulator.start();
         ddrsStub.start();
@@ -65,8 +78,16 @@ public class OcsOverloadEmulator {
         networkEmulator.stop();
         ddrsStub.stop();
         qMonitor.stop();
+        metricSampler.stop();
         LOGGER.info("MarbenQueue size:{}", marbenQueue.size());
         LOGGER.info("MarbenResponseQueue size:{}", marbenResponseQueue.size());
+    }
+
+    private static Timer getTimer(MeterRegistry registry) {
+        return Timer.builder("latency.timer")
+                .publishPercentiles(0.5, 0.9, 0.95) // Define percentiles to be collected
+                .publishPercentileHistogram()
+                .register(registry);
     }
 
     private static List<DdrsRmaReceiver> initDDRSRmaReceivers(List<BlockingQueue<Message>> qcmResponseQueues, BlockingQueue<Message> marbenResponseQueue, int ddrsExecutorThreadPoolSize) {

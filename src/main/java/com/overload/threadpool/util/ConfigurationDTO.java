@@ -9,7 +9,7 @@ import java.util.Properties;
 public class ConfigurationDTO {
     private static final Logger LOGGER = LoggerFactory.getLogger(ConfigurationDTO.class);
     private int numberOfMessages;
-    private int producerThreads;
+    private int consumerThreads;
     private int ddrsConsumers;
     private int qcmConsumers;
     private int numberOfIterations;
@@ -17,23 +17,25 @@ public class ConfigurationDTO {
     private int rmaInputThreadPoolSize;
     private int rmaExecutorThreadPoolSize;
     private int qcmInputAdapterThreadPoolSize;
-    private int qcmProcessingTime;
-    private int ddrsProcessingTime;
+    private int qcmProcessingTimeMs;
+    private int ddrsProcessingTimeMs;
+    private int pollTimeInSeconds;
 
 
     public ConfigurationDTO(Properties properties) {
         try {
             this.numberOfMessages = Integer.parseInt(properties.getProperty("numberOfMessages", "100"));
             this.ddrsConsumers = Integer.parseInt(properties.getProperty("ddrsConsumers", "1"));
-            this.producerThreads = Integer.parseInt(properties.getProperty("producerThreads", "1"));
+            this.consumerThreads = Integer.parseInt(properties.getProperty("consumerThreads", "1"));
             this.qcmConsumers = Integer.parseInt(properties.getProperty("qcmConsumers", "1"));
             this.numberOfIterations = Integer.parseInt(properties.getProperty("numberOfIterations", "1"));
             this.rmaExecutorThreadPoolSize = Integer.parseInt(properties.getProperty("rmaExecutorThreadPoolSize", "10"));
             this.rmaInputThreadPoolSize = Integer.parseInt(properties.getProperty("rmaInputThreadPoolSize", "10"));
             this.qcmInputAdapterThreadPoolSize = Integer.parseInt(properties.getProperty("qcmInputAdapterThreadPoolSize", "10"));
             this.ddrsExecutorThreadPoolSize = Integer.parseInt(properties.getProperty("ddrsExecutorThreadPoolSize", "10"));
-            this.qcmProcessingTime = Integer.parseInt(properties.getProperty("qcmProcessingTime","1"));
-            this.ddrsProcessingTime = Integer.parseInt(properties.getProperty("ddrsProcessingTime","1"));
+            this.qcmProcessingTimeMs = Integer.parseInt(properties.getProperty("qcmProcessingTimeMs","1"));
+            this.ddrsProcessingTimeMs = Integer.parseInt(properties.getProperty("ddrsProcessingTimeMs","1"));
+            this.pollTimeInSeconds= Integer.parseInt(properties.getProperty("pollTimeInSeconds","60"));
         } catch (Exception e) {
             LOGGER.error("Please check following values " +
                     "in property file numberOfThreads, numberOfMessages, " +
@@ -45,8 +47,8 @@ public class ConfigurationDTO {
         return numberOfMessages;
     }
 
-    public int getProducerThreads() {
-        return producerThreads;
+    public int getConsumerThreads() {
+        return consumerThreads;
     }
 
     public int getDdrsConsumers() {
@@ -73,23 +75,27 @@ public class ConfigurationDTO {
         return qcmInputAdapterThreadPoolSize;
     }
 
-    public int getQcmProcessingTime() {
-        return qcmProcessingTime;
+    public int getQcmProcessingTimeMs() {
+        return qcmProcessingTimeMs;
     }
 
     public int getDdrsExecutorThreadPoolSize() {
         return ddrsExecutorThreadPoolSize;
     }
 
-    public int getDdrsProcessingTime() {
-        return ddrsProcessingTime;
+    public int getDdrsProcessingTimeMs() {
+        return ddrsProcessingTimeMs;
+    }
+
+    public int getPollTimeInSeconds() {
+        return pollTimeInSeconds;
     }
 
     @Override
     public String toString() {
         return "ConfigurationDTO{" +
                 "numberOfMessages=" + numberOfMessages +
-                ", producerThreads=" + producerThreads +
+                ", consumerThreads=" + consumerThreads +
                 ", ddrsConsumers=" + ddrsConsumers +
                 ", qcmConsumers=" + qcmConsumers +
                 ", numberOfIterations=" + numberOfIterations +
@@ -97,8 +103,9 @@ public class ConfigurationDTO {
                 ", rmaInputThreadPoolSize=" + rmaInputThreadPoolSize +
                 ", rmaExecutorThreadPoolSize=" + rmaExecutorThreadPoolSize +
                 ", qcmInputAdapterThreadPoolSize=" + qcmInputAdapterThreadPoolSize +
-                ", qcmProcessingTime=" + qcmProcessingTime +
-                ", ddrsProcessingTime=" + ddrsProcessingTime +
+                ", qcmProcessingTime=" + qcmProcessingTimeMs +
+                ", ddrsProcessingTime=" + ddrsProcessingTimeMs +
+                ", pollTimeInSeconds=" + pollTimeInSeconds +
                 '}';
     }
 }
