@@ -1,99 +1,104 @@
 package com.overload.threadpool;
 
-import org.apache.commons.lang3.concurrent.BasicThreadFactory;
-import org.apache.log4j.Logger;
+
+import com.overload.threadpool.util.RateLimiter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.overload.threadpool.util.Message;
 
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class NetworkEmulator {
+    private static final Logger LOGGER = LoggerFactory.getLogger(NetworkEmulator.class);
+    private static final long NANO_TO_MILIS = 1000000;
     private final BlockingQueue<Message> marbenMessageQueue;
     private final BlockingQueue<Message> marbenResponseQueue;
-    private final ExecutorService publisherExecutor;
+    private final ScheduledExecutorService publisherExecutor;
 
     private final ExecutorService receiverExecutor;
 
-    private Map<UUID,Message> messageMap;
+    private final Map<UUID, Message> messageMap;
 
     private final int numberOfMessages;
     private final int numberOfThreads;
+    private final int numberOfIteration;
 
-    private final int numberOfConsumerThreads;
 
-    private final int noOfIteration;
 
-    private ScheduledExecutorService messagePublisherExecutor;
 
-    private static final Logger LOGGER = Logger.getLogger(NetworkEmulator.class);
 
-    public NetworkEmulator(int numberOfMessages, int numberOfThreads, BlockingQueue<Message> mQueue, int numberOfConsumerThreads, BlockingQueue<Message> marbenResponseQueue,int noOfIteration) {
+    public NetworkEmulator(int numberOfMessages, int numberOfIteration, int numberOfThreads, BlockingQueue<Message> mQueue, BlockingQueue<Message> marbenResponseQueue) {
         this.numberOfMessages = numberOfMessages;
         this.numberOfThreads = numberOfThreads;
         this.marbenMessageQueue = mQueue;
-        this.numberOfConsumerThreads =  numberOfConsumerThreads;
         this.messageMap = new ConcurrentHashMap<>();
         this.marbenResponseQueue = marbenResponseQueue;
-        BasicThreadFactory factory = new BasicThreadFactory.Builder()
-                .namingPattern("Workload-generator-%d")
-                .priority(Thread.MAX_PRIORITY)
-                .build();
-        publisherExecutor = Executors.newFixedThreadPool(numberOfThreads,factory);
-        receiverExecutor = Executors.newFixedThreadPool(numberOfThreads,factory);
+        this.numberOfIteration = numberOfIteration;
 
-        messagePublisherExecutor = Executors.newScheduledThreadPool(1);
-        this.noOfIteration=noOfIteration;
-
+        publisherExecutor = Executors.newScheduledThreadPool(1);
+        receiverExecutor = Executors.newFixedThreadPool(this.numberOfThreads);
     }
 
     public void start() {
-        //publishMessage();
-        messagePublisher();
+        publishMessage();
         receiveMessage();
-
     }
 
     private void publishMessage() {
-        int numberOfMessagePerThread = numberOfMessages / numberOfThreads;
+        AtomicInteger iterationCount = new AtomicInteger(0);
+        RateLimiter rateLimiter = new RateLimiter(numberOfMessages);
         Runnable publisherTask = () -> {
-            for (int i = 0; i < numberOfMessagePerThread; i++) {
+            rateLimiter.start();
+            for (int i = 0; i < numberOfMessages; i++) {
+                rateLimiter.delayIfNeeded();
                 Message message = getMessage();
-                marbenMessageQueue.offer(message);
+                boolean offerResult = marbenMessageQueue.offer(message);
+                LOGGER.debug("{} pushed in marbenQueue {} ",message, offerResult);
             }
-            LOGGER.info(numberOfMessagePerThread +" Message pushed in "+Thread.currentThread().getName());
+            rateLimiter.reset();
+            LOGGER.info("{} Message pushed in {} ", numberOfMessages, Thread.currentThread().getName());
+            iterationCount.incrementAndGet();
+            if (iterationCount.get() == numberOfIteration)
+                publisherExecutor.shutdown();
         };
+        publisherExecutor.scheduleAtFixedRate(publisherTask, 0, 1, TimeUnit.SECONDS);
 
-        for (int i = 0; i < numberOfThreads; i++) {
-             publisherExecutor.execute(publisherTask);
-         }
+
     }
-
-    private void messagePublisher(){
-        MessagePublisher messagePublisher=new MessagePublisher(numberOfMessages,noOfIteration,marbenMessageQueue,messageMap,messagePublisherExecutor);
-        messagePublisherExecutor.scheduleAtFixedRate(messagePublisher,0,1,TimeUnit.SECONDS);
-    }
-
 
     private void receiveMessage() {
-       Runnable receiverTask = () -> {
-           int count = 0;
-           while(true)
-           try {
+        Runnable receiverTask = () -> {
+            int count = 0;
+            while (true)
+                try {
 
-               Message receivedMessage = marbenResponseQueue.poll(2,TimeUnit.SECONDS);
-               count++;
-               if(receivedMessage == null) {
-                   LOGGER.info("Total Read message by this thread:"+count+" now exiting."+Thread.currentThread().getName());
-                   break;
-               }
-               Message message = messageMap.remove(receivedMessage.getUuid());
-               if(message != null)
-                   message.setTotalTimeInProcessing(System.currentTimeMillis() - message.getInitTime());
-               LOGGER.info(message);
+                    Message receivedMessage = marbenResponseQueue.poll(2, TimeUnit.SECONDS);
+                    count++;
+                    if (receivedMessage == null) {
+                        LOGGER.info("Total Read message by this thread: {} now exiting.{}", count, Thread.currentThread().getName());
+                        break;
+                    }
+                    Message message = messageMap.remove(receivedMessage.getUuid());
+                    if (message != null) {
+                        long elapsedTimeInMilis = (System.nanoTime() - message.getInitTime())/NANO_TO_MILIS;
+                        message.setTotalTimeInProcessing(elapsedTimeInMilis);
+                        LOGGER.info("{}",message);
 
-           } catch (InterruptedException e) {
-               throw new RuntimeException(e);
-           }
+                    }
+
+
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
         };
 
         for (int i = 0; i < numberOfThreads; i++) {
@@ -102,16 +107,12 @@ public class NetworkEmulator {
     }
 
     private Message getMessage() {
-        try {
-            Thread.sleep(10);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
         UUID uuid = UUID.randomUUID();
         String type = getType();
-        long initTime = System.currentTimeMillis();
-        Message message = new Message(uuid,type,initTime);
-        messageMap.put(uuid,message);
+
+        long initTime = System.nanoTime();
+        Message message = new Message(uuid, type, initTime);
+        messageMap.put(uuid, message);
         return message;
     }
 
@@ -130,20 +131,9 @@ public class NetworkEmulator {
         return null;
     }
 
-    public void stop() throws InterruptedException {
-        long startTime = System.currentTimeMillis();
-        LOGGER.info("Workload shutdown triggered:");
-        publisherExecutor.shutdown();
-
-        long endTime = System.currentTimeMillis();
-        LOGGER.info("Workload shutdown passed:"+(endTime - startTime));
-        startTime = System.currentTimeMillis();
-        publisherExecutor.awaitTermination(1000,TimeUnit.SECONDS);
-        LOGGER.info("Waited for Termination:"+( System.currentTimeMillis() - startTime));
-        LOGGER.info("Map Size:"+messageMap.size());
-
+    public void stop() {
+        LOGGER.info("Map Size:{}", messageMap.size());
         receiverExecutor.shutdown();
-
     }
 
 }
