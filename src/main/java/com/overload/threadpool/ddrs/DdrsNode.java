@@ -2,54 +2,47 @@ package com.overload.threadpool.ddrs;
 
 
 import com.overload.threadpool.util.Message;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.util.Random;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-public class DdrsNode implements Runnable {
-    private static final Logger LOGGER = LoggerFactory.getLogger(DdrsNode.class);
+public class DdrsNode implements Runnable
+{
+
     private final BlockingQueue<Message> marbenQueue;
     private final DdrsRmaSender ddrsRmaEmulator;
     private final DdrsRmaReceiver ddrsRmaReceiver;
 
     private final int qcmNodes;
-    private final int processingTime;
+    private final int processingTimeMs;
+    private volatile boolean shouldExit;
 
 
-    public DdrsNode(BlockingQueue<Message> marbenQueue, int qcmNodes, DdrsRmaSender ddrsRmaEmulator, DdrsRmaReceiver ddrsRmaReceiver, int processingTime) {
+    public DdrsNode(BlockingQueue<Message> marbenQueue, int qcmNodes, DdrsRmaSender ddrsRmaEmulator, DdrsRmaReceiver ddrsRmaReceiver, int processingTimeMs) {
         this.marbenQueue = marbenQueue;
         this.qcmNodes = qcmNodes;
         this.ddrsRmaEmulator = ddrsRmaEmulator;
         this.ddrsRmaReceiver = ddrsRmaReceiver;
-        this.processingTime = processingTime;
+        this.processingTimeMs = processingTimeMs;
+        this.shouldExit = false;
     }
 
     @Override
     public void run() {
         ddrsRmaReceiver.start();
-        Random randomNode = new Random();
         Message message;
-        int count = 0;
-        while (true) {
-            try {
-                message = marbenQueue.poll(2, TimeUnit.SECONDS);
-                if (message == null) {
+        try {
+            while (!shouldExit) {
 
-                    LOGGER.info("{} message processed, and now quitting because message not received within 1 second.",count);
-                    break;
+                message = marbenQueue.poll(20, TimeUnit.MILLISECONDS);
+                if (message != null) {
+                    message.setNodeId(ThreadLocalRandom.current().nextInt(this.qcmNodes));
+                    processMessage(message);
+
                 }
-                message.setNodeId(randomNode.nextInt(this.qcmNodes));
-                processMessage(message);
-                count++;
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
             }
 
-        }
-        try {
             ddrsRmaEmulator.shutdownRmaInputThreadPool();
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
@@ -57,8 +50,15 @@ public class DdrsNode implements Runnable {
 
     }
 
+    public void stopDdrsNode() {
+        shouldExit = true;
+    }
+
     private void processMessage(Message message) throws InterruptedException {
-        Thread.sleep(processingTime);
+        long startTime = System.nanoTime();
+        Thread.sleep(processingTimeMs);
+        long elapsedTime = System.nanoTime() - startTime;
+        message.setTimeSpentInDDRS(elapsedTime);
         this.ddrsRmaEmulator.submit(message);
     }
 }

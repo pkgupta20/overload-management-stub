@@ -20,6 +20,7 @@ public class ConfigurationDTO {
     private int qcmProcessingTimeMs;
     private int ddrsProcessingTimeMs;
     private int pollTimeInSeconds;
+    private int timeOutMs;
 
 
     public ConfigurationDTO(Properties properties) {
@@ -33,9 +34,10 @@ public class ConfigurationDTO {
             this.rmaInputThreadPoolSize = Integer.parseInt(properties.getProperty("rmaInputThreadPoolSize", "10"));
             this.qcmInputAdapterThreadPoolSize = Integer.parseInt(properties.getProperty("qcmInputAdapterThreadPoolSize", "10"));
             this.ddrsExecutorThreadPoolSize = Integer.parseInt(properties.getProperty("ddrsExecutorThreadPoolSize", "10"));
-            this.qcmProcessingTimeMs = Integer.parseInt(properties.getProperty("qcmProcessingTimeMs","1"));
-            this.ddrsProcessingTimeMs = Integer.parseInt(properties.getProperty("ddrsProcessingTimeMs","1"));
-            this.pollTimeInSeconds= Integer.parseInt(properties.getProperty("pollTimeInSeconds","60"));
+            this.qcmProcessingTimeMs = Integer.parseInt(properties.getProperty("qcmProcessingTimeMs", "1"));
+            this.ddrsProcessingTimeMs = Integer.parseInt(properties.getProperty("ddrsProcessingTimeMs", "1"));
+            this.pollTimeInSeconds = Integer.parseInt(properties.getProperty("pollTimeInSeconds", "60"));
+            this.timeOutMs = Integer.parseInt(properties.getProperty("timeOutMs", "100"));
         } catch (Exception e) {
             LOGGER.error("Please check following values " +
                     "in property file numberOfThreads, numberOfMessages, " +
@@ -103,9 +105,14 @@ public class ConfigurationDTO {
                 ", rmaInputThreadPoolSize=" + rmaInputThreadPoolSize +
                 ", rmaExecutorThreadPoolSize=" + rmaExecutorThreadPoolSize +
                 ", qcmInputAdapterThreadPoolSize=" + qcmInputAdapterThreadPoolSize +
-                ", qcmProcessingTime=" + qcmProcessingTimeMs +
-                ", ddrsProcessingTime=" + ddrsProcessingTimeMs +
+                ", qcmProcessingTimeMs=" + qcmProcessingTimeMs +
+                ", ddrsProcessingTimeMs=" + ddrsProcessingTimeMs +
                 ", pollTimeInSeconds=" + pollTimeInSeconds +
+                ", timeOutMs=" + timeOutMs +
                 '}';
+    }
+
+    public int getTimeOutMs() {
+        return timeOutMs;
     }
 }

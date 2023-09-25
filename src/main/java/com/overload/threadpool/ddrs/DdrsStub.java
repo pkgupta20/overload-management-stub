@@ -22,25 +22,26 @@ public class DdrsStub {
     private final int ddrsConsumers;
     private final int qcmNodes;
 
-    private final int processingTime;
+    private final int processingTimeMs;
+
+    private final List<DdrsNode> ddrsNodes;
 
 
-
-    public DdrsStub(BlockingQueue<Message> marbenQueue, int ddrsConsumers, int qcmNodes, List<DdrsRmaSender> ddrsRmaEmulators, List<DdrsRmaReceiver> ddrsRmaReceivers, int processingTime) {
+    public DdrsStub(BlockingQueue<Message> marbenQueue, int ddrsConsumers, int qcmNodes, List<DdrsRmaSender> ddrsRmaEmulators, List<DdrsRmaReceiver> ddrsRmaReceivers, int processingTimeMs) {
         this.marbenQueue = marbenQueue;
         this.ddrsConsumers = ddrsConsumers;
         this.qcmNodes = qcmNodes;
         this.ddrsRmaEmulators = ddrsRmaEmulators;
         this.ddrsRMAReceivers = ddrsRmaReceivers;
         this.consumerExecutor = Executors.newFixedThreadPool(this.ddrsConsumers);
-        this.processingTime = processingTime;
+        this.processingTimeMs = processingTimeMs;
+        this.ddrsNodes = new ArrayList<>(ddrsConsumers);
     }
 
     public void start() {
-        List<Runnable> ddrsNodes = new ArrayList<>(ddrsConsumers);
+
         for (int i = 0; i < ddrsConsumers; i++) {
-            Runnable ddrsNode = new DdrsNode(this.marbenQueue, this.qcmNodes, this.ddrsRmaEmulators.get(i), this.ddrsRMAReceivers.get(i), processingTime);
-            ddrsNodes.add(ddrsNode);
+            ddrsNodes.add(new DdrsNode(this.marbenQueue, this.qcmNodes, this.ddrsRmaEmulators.get(i), this.ddrsRMAReceivers.get(i), this.processingTimeMs));
         }
 
         for (Runnable ddrsNode : ddrsNodes) {
@@ -51,15 +52,11 @@ public class DdrsStub {
     }
 
     public void stop() throws InterruptedException {
-        long startTime = System.currentTimeMillis();
-        LOGGER.info("DDRSStub shutdown triggered:");
+        ddrsNodes.forEach(ddrsNode -> ddrsNode.stopDdrsNode());
+        ddrsRMAReceivers.forEach(ddrsRmaReceiver -> ddrsRmaReceiver.stopDdrsRmaReceiver());
         consumerExecutor.shutdown();
-        long endTime = System.currentTimeMillis();
-        LOGGER.info("DDRSStub shutdown passed:{}" , (endTime - startTime));
-        boolean terminationResult = consumerExecutor.awaitTermination(10000, TimeUnit.SECONDS);
+        boolean terminationResult = consumerExecutor.awaitTermination(100, TimeUnit.SECONDS);
         LOGGER.info("DDRSStub Terminated normally:{}", terminationResult);
 
     }
-
-
 }

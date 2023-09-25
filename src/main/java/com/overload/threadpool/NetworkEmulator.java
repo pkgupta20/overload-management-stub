@@ -1,6 +1,7 @@
 package com.overload.threadpool;
 
 
+import com.overload.threadpool.util.MetricSampler;
 import com.overload.threadpool.util.RateLimiter;
 import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
@@ -21,6 +22,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class NetworkEmulator {
     private static final Logger LOGGER = LoggerFactory.getLogger(NetworkEmulator.class);
     private static final long NANO_TO_MILIS = 1000000;
+
+    private static AtomicInteger messageCount;
     private final BlockingQueue<Message> marbenMessageQueue;
     private final BlockingQueue<Message> marbenResponseQueue;
     private final ScheduledExecutorService publisherExecutor;
@@ -33,12 +36,17 @@ public class NetworkEmulator {
     private final int numberOfThreads;
     private final int numberOfIteration;
     private final Timer timer;
+    private final int expectedMessages;
+
+    private MetricSampler metricSampler;
+
+    private final int timeoutMs;
+
+    private volatile boolean shouldExit;
 
 
 
-
-
-    public NetworkEmulator(int numberOfMessages, int numberOfIteration, int numberOfThreads, BlockingQueue<Message> mQueue, BlockingQueue<Message> marbenResponseQueue, Timer timer) {
+    public NetworkEmulator(int numberOfMessages, int numberOfIteration, int numberOfThreads, BlockingQueue<Message> mQueue, BlockingQueue<Message> marbenResponseQueue, Timer timer, int timeOutMs) {
         this.numberOfMessages = numberOfMessages;
         this.numberOfThreads = numberOfThreads;
         this.marbenMessageQueue = mQueue;
@@ -46,6 +54,12 @@ public class NetworkEmulator {
         this.marbenResponseQueue = marbenResponseQueue;
         this.numberOfIteration = numberOfIteration;
         this.timer = timer;
+        this.expectedMessages = (this.numberOfMessages * this.numberOfIteration);
+        this.shouldExit = false;
+        this.timeoutMs = timeOutMs;
+        messageCount = new AtomicInteger(0);
+
+
 
         publisherExecutor = Executors.newScheduledThreadPool(1);
         receiverExecutor = Executors.newFixedThreadPool(this.numberOfThreads);
@@ -68,10 +82,12 @@ public class NetworkEmulator {
                 LOGGER.debug("{} pushed in marbenQueue {} ",message, offerResult);
             }
             rateLimiter.reset();
-            LOGGER.info("{} Message pushed in {} ", numberOfMessages, Thread.currentThread().getName());
+            LOGGER.debug("{} Message pushed in {} ", numberOfMessages, Thread.currentThread().getName());
             iterationCount.incrementAndGet();
-            if (iterationCount.get() == numberOfIteration)
+            if (iterationCount.get() == numberOfIteration) {
                 publisherExecutor.shutdown();
+
+            }
         };
         publisherExecutor.scheduleAtFixedRate(publisherTask, 0, 1, TimeUnit.SECONDS);
 
@@ -79,28 +95,27 @@ public class NetworkEmulator {
     }
 
     private void receiveMessage() {
+
         Runnable receiverTask = () -> {
-            int count = 0;
-            while (true)
+            while (!shouldExit)
                 try {
+                    Message receivedMessage = marbenResponseQueue.poll(10,TimeUnit.MILLISECONDS);
+                    if(receivedMessage != null ){
+                        Message message = messageMap.remove(receivedMessage.getUuid());
 
-                    Message receivedMessage = marbenResponseQueue.poll(2, TimeUnit.SECONDS);
-                    count++;
-                    if (receivedMessage == null) {
-                        LOGGER.info("Total Read message by this thread: {} now exiting.{}", count, Thread.currentThread().getName());
-                        break;
+                        if (message != null) {
+
+                            long elapsedTimeInNanos = (System.nanoTime() - message.getInitTime());
+                            long elapsedTimeInMillis = elapsedTimeInNanos/NANO_TO_MILIS;
+                            if(elapsedTimeInMillis < timeoutMs){
+                                messageCount.incrementAndGet();
+                                timer.record(elapsedTimeInNanos, TimeUnit.NANOSECONDS);
+                            } else{
+                                metricSampler.incTimedOutMessageCount();
+                            }
+                            message.setTotalTimeInProcessing(elapsedTimeInMillis);
+                        }
                     }
-                    Message message = messageMap.remove(receivedMessage.getUuid());
-                    if (message != null) {
-                        long elapsedTimeInNanos =System.nanoTime() - message.getInitTime();
-                        timer.record(elapsedTimeInNanos, TimeUnit.NANOSECONDS);
-                        long elapsedTimeInMilis = elapsedTimeInNanos/NANO_TO_MILIS;
-                        message.setTotalTimeInProcessing(elapsedTimeInMilis);
-                        LOGGER.info("{}",message);
-
-                    }
-
-
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -116,9 +131,10 @@ public class NetworkEmulator {
         String type = getType();
 
         long initTime = System.nanoTime();
-        Message message = new Message(uuid, type, initTime);
-        messageMap.put(uuid, message);
-        return message;
+        Message messageInMap = new Message(uuid, type, initTime);
+        Message messageToProcess = new Message(uuid, type, initTime);
+        messageMap.put(uuid, messageInMap);
+        return messageToProcess;
     }
 
     private String getType() {
@@ -136,9 +152,28 @@ public class NetworkEmulator {
         return null;
     }
 
-    public void stop() {
-        LOGGER.info("Map Size:{}", messageMap.size());
+    public boolean stop() throws InterruptedException {
+        while(true){
+            if (expectedMessages <= (messageCount.get() + metricSampler.getTimedOutMessageCount())) {
+                LOGGER.info("Total Read message: {},timedOut :{} till now exiting.{}", messageCount.get(), metricSampler.getTimedOutMessageCount(), Thread.currentThread().getName());
+                shouldExit = true;
+                break;
+            }else{
+                Thread.sleep(500);
+            }
+        }
         receiverExecutor.shutdown();
+        boolean result  = receiverExecutor.awaitTermination(1, TimeUnit.SECONDS);
+        LOGGER.debug("Map Size:{} after termination gracefully {}", messageMap.size(), result);
+        return true;
+    }
+
+    public Map<UUID, Message> getMessageMap() {
+        return messageMap;
+    }
+
+    public void setMetricSampler(MetricSampler metricSampler) {
+        this.metricSampler = metricSampler;
     }
 
 }

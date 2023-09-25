@@ -12,35 +12,32 @@ import java.util.concurrent.TimeUnit;
 
 public class QcmRmaReceiver extends Thread {
     private static final Logger LOGGER = LoggerFactory.getLogger(QcmRmaReceiver.class);
-    private final int processingTime;
+    private final int processingTimeMs;
     private final BlockingQueue<Message> nodeRequestQueue;
     private final BlockingQueue<Message> nodeResponseQueue;
     private final ExecutorService qcmInputAdapterThreadPool;
     private final ExecutorService qcmRmaExecutorThreadPool;
+    private volatile boolean shouldExit;
 
 
-    public QcmRmaReceiver(BlockingQueue<Message> nodeRequestQueue, BlockingQueue<Message> nodeResponseQueue, int qcmInputAdapterThreadpoolSize, int qcmRmaExecutorThreadpoolSize, int processingTime) {
+    public QcmRmaReceiver(BlockingQueue<Message> nodeRequestQueue, BlockingQueue<Message> nodeResponseQueue, int qcmInputAdapterThreadpoolSize, int qcmRmaExecutorThreadpoolSize, int processingTimeMs) {
         this.nodeRequestQueue = nodeRequestQueue;
         this.nodeResponseQueue = nodeResponseQueue;
         this.qcmInputAdapterThreadPool = Executors.newFixedThreadPool(qcmInputAdapterThreadpoolSize);
         this.qcmRmaExecutorThreadPool = Executors.newFixedThreadPool(qcmRmaExecutorThreadpoolSize);
-        this.processingTime = processingTime;
+        this.processingTimeMs = processingTimeMs;
+        this.shouldExit = false;
     }
 
     @Override
     public void run() {
-        int count = 0;
         Message message;
-        while (true) {
+        while (!shouldExit) {
             try {
-                message = nodeRequestQueue.poll(2, TimeUnit.SECONDS);
-                if (message == null) {
-                    LOGGER.info("{} Message received in QCM Receiver.", count);
-                    break;
+                message = nodeRequestQueue.poll(20, TimeUnit.MILLISECONDS);
+                if (message != null) {
+                    qcmInputAdapterThreadPool.submit(new QcmBusinessLogicEmulator(message, this.nodeResponseQueue, this.qcmRmaExecutorThreadPool, this.processingTimeMs));
                 }
-                count++;
-                qcmInputAdapterThreadPool.submit(new QcmBusinessLogicEmulator(message, nodeResponseQueue, qcmRmaExecutorThreadPool, processingTime));
-
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -52,7 +49,18 @@ public class QcmRmaReceiver extends Thread {
 
     private void shutdownThreadPool() {
         qcmInputAdapterThreadPool.shutdown();
-        qcmRmaExecutorThreadPool.shutdown();
-        LOGGER.info("RMA Response Queue size:{}", nodeResponseQueue.size());
+        try {
+            boolean resultInput = qcmInputAdapterThreadPool.awaitTermination(1, TimeUnit.SECONDS);
+            qcmRmaExecutorThreadPool.shutdown();
+            boolean resultRmaExecutor = qcmRmaExecutorThreadPool.awaitTermination(1, TimeUnit.SECONDS);
+            LOGGER.debug("RMA Response Queue size:{}, InputAdapter terminated gracefully {}, RMAExecutor terminated gracefully {}", nodeResponseQueue.size(), resultInput, resultRmaExecutor);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    public void stopQcmRmaReceiver() {
+        shouldExit = true;
     }
 }

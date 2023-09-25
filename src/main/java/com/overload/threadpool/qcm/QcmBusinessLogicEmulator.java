@@ -16,20 +16,20 @@ public class QcmBusinessLogicEmulator implements Runnable {
     private final ExecutorService rmaExecutorThreadPool;
 
     private final BlockingQueue<Message> responseQueue;
-    private final int processingTime;
+    private final int processingTimeMs;
 
 
-    public QcmBusinessLogicEmulator(Message message, BlockingQueue<Message> responseQueue, ExecutorService rmaExecutorThreadPool, int processingTime) {
+    public QcmBusinessLogicEmulator(Message message, BlockingQueue<Message> responseQueue, ExecutorService rmaExecutorThreadPool, int processingTimeMs) {
         this.message = message;
         this.rmaExecutorThreadPool = rmaExecutorThreadPool;
         this.responseQueue = responseQueue;
-        this.processingTime = processingTime;
+        this.processingTimeMs = processingTimeMs;
     }
 
     @Override
     public void run() {
         try {
-            Thread.sleep(this.processingTime);
+            Thread.sleep(this.processingTimeMs);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

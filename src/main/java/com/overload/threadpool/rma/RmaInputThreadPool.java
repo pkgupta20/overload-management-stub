@@ -33,7 +33,7 @@ public class RmaInputThreadPool {
 
     public void stop() throws InterruptedException {
         service.shutdown();
-        boolean terminationResult = service.awaitTermination(100, TimeUnit.MILLISECONDS);
+        boolean terminationResult = service.awaitTermination(2, TimeUnit.SECONDS);
         LOGGER.debug("RMAInputThreadPool shutdown normally {}",terminationResult);
 
     }

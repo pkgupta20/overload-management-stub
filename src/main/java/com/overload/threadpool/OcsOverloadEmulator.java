@@ -30,17 +30,17 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class OcsOverloadEmulator {
-
     private static final Logger LOGGER = LoggerFactory.getLogger(OcsOverloadEmulator.class);
+    private static volatile boolean shouldExit = false;
 
     public static void main(String[] args) throws InterruptedException, IOException {
         BlockingQueue<Message> marbenQueue = new LinkedBlockingQueue<>();
         BlockingQueue<Message> marbenResponseQueue = new LinkedBlockingQueue<>();
-        List<DdrsRmaSender> ddrsRmaddrsRmaSenders;
-        List<DdrsRmaReceiver> ddrsRmaReceivers;
         SimpleConfig simpleConfig = new MicrometerConfig();
         MeterRegistry registry = new SimpleMeterRegistry(simpleConfig, Clock.SYSTEM);
         Timer timer = getTimer(registry);
+        List<DdrsRmaSender> ddrsRmaddrsRmaSenders;
+        List<DdrsRmaReceiver> ddrsRmaReceivers;
         LOGGER.info("OCS Overload Emulator Started...");
 
 
@@ -49,7 +49,7 @@ public class OcsOverloadEmulator {
         LOGGER.info("{}", configurationDTO);
 
         int numberOfMessages = configurationDTO.getNumberOfMessages();
-        int producerThreads = configurationDTO.getConsumerThreads();
+        int consumerThreads = configurationDTO.getConsumerThreads();
         int ddrsConsumers = configurationDTO.getDdrsConsumers();
         int qcmConsumers = configurationDTO.getQcmConsumers();
         int numberOfIterations = configurationDTO.getNumberOfIterations();
@@ -57,35 +57,53 @@ public class OcsOverloadEmulator {
         int rmaInputAdapterThreadPoolSize = configurationDTO.getRmaInputThreadPoolSize();
         int rmaExecutorThreadPoolSize = configurationDTO.getRmaExecutorThreadPoolSize();
         int qcmInputAdapterThreadPoolSize = configurationDTO.getQcmInputAdapterThreadPoolSize();
-        int qcmProcessingTime = configurationDTO.getQcmProcessingTimeMs();
-        int ddrsProcessingTime = configurationDTO.getDdrsProcessingTimeMs();
+        int qcmProcessingTimeMs = configurationDTO.getQcmProcessingTimeMs();
+        int ddrsProcessingTimeMs = configurationDTO.getDdrsProcessingTimeMs();
         int pollTimeInSeconds = configurationDTO.getPollTimeInSeconds();
+        int timeOutMs = configurationDTO.getTimeOutMs();
 
         List<BlockingQueue<Message>> qcmNodeList = initQueues(qcmConsumers);
         List<BlockingQueue<Message>> qcmResponseQueues = initQueues(ddrsConsumers);
         ddrsRmaddrsRmaSenders = initDdrsRmaSenders(ddrsConsumers, qcmNodeList, rmaInputAdapterThreadPoolSize);
         ddrsRmaReceivers = initDDRSRmaReceivers(qcmResponseQueues, marbenResponseQueue, ddrsExecutorThreadPoolSize);
-        NetworkEmulator networkEmulator = new NetworkEmulator(numberOfMessages, numberOfIterations, producerThreads, marbenQueue, marbenResponseQueue, timer);
-        DdrsStub ddrsStub = new DdrsStub(marbenQueue, ddrsConsumers, qcmConsumers, ddrsRmaddrsRmaSenders, ddrsRmaReceivers, ddrsProcessingTime);
-        QcmStub qcmStub = new QcmStub(qcmNodeList, qcmResponseQueues, qcmInputAdapterThreadPoolSize, rmaExecutorThreadPoolSize, qcmProcessingTime);
-        QueueMonitor qMonitor = new QueueMonitor(marbenQueue);
-        MetricSampler metricSampler = new MetricSampler(registry,timer, pollTimeInSeconds);
+
+        NetworkEmulator networkEmulator = new NetworkEmulator(numberOfMessages, numberOfIterations, consumerThreads, marbenQueue, marbenResponseQueue, timer, timeOutMs);
+        DdrsStub ddrsStub = new DdrsStub(marbenQueue, ddrsConsumers, qcmConsumers, ddrsRmaddrsRmaSenders, ddrsRmaReceivers, ddrsProcessingTimeMs);
+        QcmStub qcmStub = new QcmStub(qcmNodeList, qcmResponseQueues, qcmInputAdapterThreadPoolSize, rmaExecutorThreadPoolSize, qcmProcessingTimeMs);
+        MetricSampler metricSampler = new MetricSampler(registry, timer, pollTimeInSeconds, marbenQueue, networkEmulator.getMessageMap(), timeOutMs);
+        networkEmulator.setMetricSampler(metricSampler);
+
+        startApplication(networkEmulator, ddrsStub, qcmStub, metricSampler);
+        shouldExit = networkEmulator.stop();
+        LOGGER.debug("Network emulator stopped.");
+        stopApplication(ddrsStub, qcmStub, metricSampler);
+    }
+
+    private static void stopApplication(DdrsStub ddrsStub, QcmStub qcmStub, MetricSampler metricSampler) throws InterruptedException {
+        while (true) {
+            if (shouldExit) {
+                LOGGER.info("All messages received now Application is going to shut down");
+                ddrsStub.stop();
+                qcmStub.stop();
+                metricSampler.stop();
+                break;
+            } else {
+                Thread.sleep(500);
+            }
+        }
+    }
+
+
+    private static void startApplication(NetworkEmulator networkEmulator, DdrsStub ddrsStub, QcmStub qcmStub, MetricSampler metricSampler) {
         metricSampler.start();
-        qMonitor.start();
         networkEmulator.start();
         ddrsStub.start();
         qcmStub.start();
-        networkEmulator.stop();
-        ddrsStub.stop();
-        qMonitor.stop();
-        metricSampler.stop();
-        LOGGER.info("MarbenQueue size:{}", marbenQueue.size());
-        LOGGER.info("MarbenResponseQueue size:{}", marbenResponseQueue.size());
     }
 
     private static Timer getTimer(MeterRegistry registry) {
         return Timer.builder("latency.timer")
-                .publishPercentiles(0.5, 0.9, 0.95) // Define percentiles to be collected
+                .publishPercentiles(0.5, 0.9, 0.95)
                 .publishPercentileHistogram()
                 .register(registry);
     }

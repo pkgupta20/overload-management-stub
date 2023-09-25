@@ -11,47 +11,51 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-public class DdrsRmaReceiver extends Thread {
+public class DdrsRmaReceiver extends Thread
+{
     private static final Logger LOGGER = LoggerFactory.getLogger(DdrsRmaReceiver.class);
     private final BlockingQueue<Message> nodeQueue;
     private final BlockingQueue<Message> marbenResponseQueue;
     private final ExecutorService ddrsExecutorThreadPool;
-
+    private volatile boolean shouldExit;
 
 
     public DdrsRmaReceiver(BlockingQueue<Message> nodeQueue, BlockingQueue<Message> marbenResponseQueue, int ddrsExecutorThreadPoolSize) {
         this.nodeQueue = nodeQueue;
         this.marbenResponseQueue = marbenResponseQueue;
         this.ddrsExecutorThreadPool = Executors.newFixedThreadPool(ddrsExecutorThreadPoolSize);
+        this.shouldExit = false;
     }
 
     @Override
     public void run() {
-        int count = 0;
-        while (true) {
+        while (!shouldExit) {
             Message message;
             try {
-                message = nodeQueue.poll(2, TimeUnit.SECONDS);
-                if (message == null) {
-                    LOGGER.info("Waited for Message for a second, but not received so exiting. Processed Messages:{}", count);
-                    break;
+                message = nodeQueue.poll(20, TimeUnit.MILLISECONDS);
+                if (message != null) {
+                    ddrsExecutorThreadPool.submit(new MarbenResponseSendingTask(message, marbenResponseQueue));
                 }
-                ddrsExecutorThreadPool.submit(new MarbenResponseSendingTask(message, marbenResponseQueue));
-                count++;
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
 
         }
-        shutdownService();
+        shutdownExecutorService();
     }
 
-    private void shutdownService() {
-        LOGGER.info("MarbenResponse Queue size:{}", marbenResponseQueue.size());
+    private void shutdownExecutorService() {
         long startTime = System.currentTimeMillis();
         ddrsExecutorThreadPool.shutdown();
-        LOGGER.info("Spent {} in termination now marbenResponseQueue size {}", (System.currentTimeMillis() - startTime) , marbenResponseQueue.size());
+        try {
+            boolean result = ddrsExecutorThreadPool.awaitTermination(2, TimeUnit.SECONDS);
+            LOGGER.info("Spent {} in termination now marbenResponseQueue size {}, terminated gracefully {}", (System.currentTimeMillis() - startTime), marbenResponseQueue.size(), result);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-
+    public void stopDdrsRmaReceiver() {
+        shouldExit = true;
     }
 }

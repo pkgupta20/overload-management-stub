@@ -4,6 +4,7 @@ import java.util.UUID;
 
 public class Message {
 
+
     private UUID uuid;
     private  String type;
     private int destinationId;

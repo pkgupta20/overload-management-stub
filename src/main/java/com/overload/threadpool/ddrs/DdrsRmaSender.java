@@ -10,10 +10,13 @@ public class DdrsRmaSender {
     public DdrsRmaSender(RmaInputThreadPool rmaInputThreadPool) {
         this.rmaInputThreadPool = rmaInputThreadPool;
     }
-    public void submit(Message message){
+
+    public void submit(Message message) {
         this.rmaInputThreadPool.execute(message);
     }
+
     public void shutdownRmaInputThreadPool() throws InterruptedException {
         this.rmaInputThreadPool.stop();
     }
+
 }

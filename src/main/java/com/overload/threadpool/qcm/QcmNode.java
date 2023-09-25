@@ -2,8 +2,12 @@ package com.overload.threadpool.qcm;
 
 public class QcmNode {
 
-    QcmRmaReceiver qcmRmaReceiver;
 
+    private QcmRmaReceiver qcmRmaReceiver;
+
+    public QcmRmaReceiver getQcmRmaReceiver() {
+        return qcmRmaReceiver;
+    }
 
     public QcmNode(QcmRmaReceiver qcmRmaReceiver) {
         this.qcmRmaReceiver = qcmRmaReceiver;
